@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npm update:*)",
+      "Bash(npm audit fix:*)",
+      "mcp__playwright__browser_navigate"
+    ]
+  }
+}
