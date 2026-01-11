@@ -63,25 +63,16 @@ export function BiddingPanel({ currencyBalance, round, onSubmitBid, disabled = f
           <label className="block text-lg font-semibold text-gray-700 mb-2">
             Bid Amount:
           </label>
-          <div className="flex items-center space-x-4">
-            <input
-              type="number"
-              min="0"
-              max={currencyBalance}
-              value={bidAmount}
-              onChange={(e) => setBidAmount(Math.max(0, Math.min(currencyBalance, parseInt(e.target.value) || 0)))}
-              disabled={disabled || submitting}
-              className="flex-1 px-4 py-3 text-2xl font-bold border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none disabled:opacity-50"
-              placeholder="0"
-            />
-            <Button
-              variant="secondary"
-              onClick={() => setBidAmount(currencyBalance)}
-              disabled={disabled || submitting}
-            >
-              All In
-            </Button>
-          </div>
+          <input
+            type="number"
+            min="0"
+            max={currencyBalance}
+            value={bidAmount}
+            onChange={(e) => setBidAmount(Math.max(0, Math.min(currencyBalance, parseInt(e.target.value) || 0)))}
+            disabled={disabled || submitting}
+            className="w-full px-4 py-3 text-2xl font-bold border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none disabled:opacity-50 text-gray-900"
+            placeholder="0"
+          />
           <p className="text-sm text-gray-500 mt-2">
             Enter 0 to skip to Round 2 (if in Round 1)
           </p>

@@ -11,10 +11,10 @@ interface SongSelectorProps {
 }
 
 export function SongSelector({ selectedSong, onSelectSong, disabled = false }: SongSelectorProps) {
-  const songs: { id: Song; name: string; color: string; bgColor: string; borderColor: string }[] = [
-    { id: "A", name: "Song A", color: "blue", bgColor: "bg-blue-50", borderColor: "border-blue-400" },
-    { id: "B", name: "Song B", color: "green", bgColor: "bg-green-50", borderColor: "border-green-400" },
-    { id: "C", name: "Song C", color: "purple", bgColor: "bg-purple-50", borderColor: "border-purple-400" },
+  const songs: { id: Song; name: string; color: string; bgColor: string; borderColor: string; textColor: string }[] = [
+    { id: "A", name: "Song A", color: "blue", bgColor: "bg-blue-50", borderColor: "border-blue-400", textColor: "text-blue-600" },
+    { id: "B", name: "Song B", color: "green", bgColor: "bg-green-50", borderColor: "border-green-400", textColor: "text-green-600" },
+    { id: "C", name: "Song C", color: "purple", bgColor: "bg-purple-50", borderColor: "border-purple-400", textColor: "text-red-600" },
   ];
 
   return (
@@ -31,7 +31,7 @@ export function SongSelector({ selectedSong, onSelectSong, disabled = false }: S
           `}
         >
           <div className="text-center">
-            <div className={`text-4xl font-bold mb-2 text-${song.color}-600`}>
+            <div className={`text-4xl font-bold mb-2 ${song.textColor}`}>
               {song.id}
             </div>
             <div className="text-sm font-semibold text-gray-700">{song.name}</div>
