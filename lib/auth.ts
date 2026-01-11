@@ -1,5 +1,4 @@
 import { cookies } from "next/headers";
-import * as crypto from "crypto";
 
 const SESSION_COOKIE_NAME = "payola_session";
 
@@ -13,7 +12,17 @@ export interface Session {
  * Generate a unique session token
  */
 export function generateSessionToken(): string {
-  return crypto.randomBytes(32).toString("hex");
+  // Use Web Crypto API which works in Edge Runtime
+  const array = new Uint8Array(32);
+  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+    crypto.getRandomValues(array);
+  } else {
+    // Fallback for environments without crypto
+    for (let i = 0; i < array.length; i++) {
+      array[i] = Math.floor(Math.random() * 256);
+    }
+  }
+  return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
 /**
