@@ -1,0 +1,46 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Game {
+  id          String   @id @default(cuid())
+  roomCode    String   @unique
+  status      String   // LOBBY, ROUND1, ROUND2, RESULTS, FINISHED
+  roundNumber Int      @default(1) // Track multiple game rounds
+  players     Player[]
+  bids        Bid[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Player {
+  id              String   @id @default(cuid())
+  gameId          String
+  game            Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  name            String
+  sessionToken    String   @unique
+  currencyBalance Int      @default(30) // Starting currency: 30
+  bids            Bid[]
+  createdAt       DateTime @default(now())
+}
+
+model Bid {
+  id        String   @id @default(cuid())
+  gameId    String
+  game      Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  playerId  String
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  round     Int      // 1 or 2 (bidding round within a game round)
+  gameRound Int      // Overall game round number
+  song      String   // "A", "B", or "C"
+  amount    Int      // Bid amount in currency (increments of 1)
+  createdAt DateTime @default(now())
+}
