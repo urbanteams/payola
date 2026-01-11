@@ -106,7 +106,7 @@ export async function POST(
 
     // Check if all players have submitted Round 1 bids
     const newRound1Count = round1Bids.length + (biddingRound === 1 ? 1 : 0);
-    if (biddingRound === 1 && newRound1Count === game.players.length && game.status === "LOBBY") {
+    if (biddingRound === 1 && newRound1Count === game.players.length && game.status === "ROUND1") {
       // All players submitted Round 1, check if we need Round 2
       const allBids = await prisma.bid.findMany({
         where: { gameId: game.id, gameRound: game.roundNumber, round: 1 },
