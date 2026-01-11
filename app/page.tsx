@@ -110,7 +110,7 @@ export default function Home() {
                   <li>• Strategic two-round bidding system</li>
                   <li>• Hidden currency balances</li>
                   <li>• Unique tie-breaking rules</li>
-                  <li>• 2+ players required</li>
+                  <li>• 3+ players required</li>
                 </ul>
               </div>
             </div>
@@ -128,7 +128,7 @@ export default function Home() {
                   onChange={(e) => setPlayerName(e.target.value)}
                   placeholder="Enter your name"
                   disabled={loading}
-                  className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none disabled:opacity-50"
+                  className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none disabled:opacity-50 text-gray-900"
                   onKeyDown={(e) => e.key === "Enter" && handleCreateGame()}
                 />
               </div>
@@ -160,7 +160,7 @@ export default function Home() {
                   onChange={(e) => setPlayerName(e.target.value)}
                   placeholder="Enter your name"
                   disabled={loading}
-                  className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none disabled:opacity-50"
+                  className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none disabled:opacity-50 text-gray-900"
                 />
               </div>
 
@@ -175,7 +175,7 @@ export default function Home() {
                   placeholder="Enter 6-character code"
                   maxLength={6}
                   disabled={loading}
-                  className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none disabled:opacity-50 uppercase text-center text-2xl tracking-widest font-bold"
+                  className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none disabled:opacity-50 uppercase text-center text-2xl tracking-widest font-bold text-gray-900"
                   onKeyDown={(e) => e.key === "Enter" && handleJoinGame()}
                 />
               </div>

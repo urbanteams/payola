@@ -84,10 +84,10 @@ export function GameLobby({ roomCode, players, onStartGame, isStarting }: GameLo
           {isCreator && (
             <Button
               onClick={onStartGame}
-              disabled={players.length < 2 || isStarting}
+              disabled={players.length < 3 || isStarting}
               className="w-full text-lg py-3"
             >
-              {isStarting ? "Starting..." : players.length < 2 ? "Need at least 2 players" : "Start Game"}
+              {isStarting ? "Starting..." : players.length < 3 ? "Need at least 3 players" : "Start Game"}
             </Button>
           )}
 

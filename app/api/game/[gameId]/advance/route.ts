@@ -47,9 +47,9 @@ export async function POST(
         );
       }
 
-      if (game.players.length < 2) {
+      if (game.players.length < 3) {
         return NextResponse.json(
-          { error: "Need at least 2 players to start" },
+          { error: "Need at least 3 players to start" },
           { status: 400 }
         );
       }
