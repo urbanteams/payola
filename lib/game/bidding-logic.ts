@@ -19,12 +19,24 @@ export function calculateSongTotals(bids: Array<{ song: string; amount: number }
 }
 
 /**
+ * Check if there's a three-way tie
+ */
+export function isThreeWayTie(totals: Record<Song, number>): boolean {
+  return totals.A === totals.B && totals.B === totals.C;
+}
+
+/**
  * Determine winning song with tie-breaking rules:
  * - If one song has the most, it wins
  * - If two songs tie for most, the third song wins
- * - If all three tie, random winner
+ * - If all three tie, random winner (or use wheel spinner)
  */
-export function determineWinningSong(totals: Record<Song, number>): Song {
+export function determineWinningSong(totals: Record<Song, number>, forcedWinner?: Song): Song {
+  // If a winner is forced (from wheel spin), use it
+  if (forcedWinner) {
+    return forcedWinner;
+  }
+
   const songs: Song[] = ["A", "B", "C"];
   const maxTotal = Math.max(totals.A, totals.B, totals.C);
   const topSongs = songs.filter((song) => totals[song] === maxTotal);

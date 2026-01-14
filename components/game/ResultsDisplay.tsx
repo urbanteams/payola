@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardHeader, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { calculateSongTotals, determineWinningSong } from "@/lib/game/bidding-logic";
@@ -18,17 +18,29 @@ interface ResultsDisplayProps {
   onNextRound: () => void;
   onFinishGame: () => void;
   isAdvancing: boolean;
+  forcedWinner?: "A" | "B" | "C" | null;
 }
 
-export function ResultsDisplay({ bids, onNextRound, onFinishGame, isAdvancing }: ResultsDisplayProps) {
+export function ResultsDisplay({ bids, onNextRound, onFinishGame, isAdvancing, forcedWinner }: ResultsDisplayProps) {
   const songTotals = calculateSongTotals(bids);
-  const winningSong = determineWinningSong(songTotals);
+  const winningSong = determineWinningSong(songTotals, forcedWinner || undefined);
+  const [countdown, setCountdown] = useState(10);
+
+  // Countdown timer
+  useEffect(() => {
+    if (countdown > 0) {
+      const timer = setTimeout(() => {
+        setCountdown(countdown - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [countdown]);
 
   const getSongColor = (song: string) => {
     switch (song) {
       case "A": return "blue";
       case "B": return "green";
-      case "C": return "purple";
+      case "C": return "red";
       default: return "gray";
     }
   };
@@ -57,8 +69,7 @@ export function ResultsDisplay({ bids, onNextRound, onFinishGame, isAdvancing }:
                   `}
                 >
                   <div className={`text-5xl font-bold mb-2 text-${color}-600`}>{song}</div>
-                  <div className="text-3xl font-bold text-gray-800">{total}</div>
-                  <div className="text-sm text-gray-600">currency</div>
+                  <div className="text-3xl font-bold text-gray-800">${total}</div>
                   {isWinner && (
                     <div className="mt-2 bg-yellow-400 text-yellow-900 text-xs font-bold py-1 px-3 rounded-full inline-block">
                       WINNER!
@@ -74,7 +85,7 @@ export function ResultsDisplay({ bids, onNextRound, onFinishGame, isAdvancing }:
         <div className="mb-6">
           <h3 className="text-xl font-semibold text-gray-700 mb-3">All Bids</h3>
           <div className="space-y-2">
-            {bids.map((bid, index) => {
+            {bids.filter(bid => bid.amount > 0).map((bid, index) => {
               const color = getSongColor(bid.song);
               const paidBid = (bid.round === 2) || (bid.round === 1 && bid.song === winningSong);
 
@@ -92,7 +103,7 @@ export function ResultsDisplay({ bids, onNextRound, onFinishGame, isAdvancing }:
                     </div>
                     <div>
                       <div className="font-semibold text-gray-800">{bid.playerName || "Unknown"}</div>
-                      <div className="text-sm text-gray-600">Round {bid.round}</div>
+                      <div className="text-sm text-gray-600">{bid.round === 1 ? "Promise" : "Bribe"}</div>
                     </div>
                   </div>
 
@@ -101,7 +112,7 @@ export function ResultsDisplay({ bids, onNextRound, onFinishGame, isAdvancing }:
                       Song {bid.song}
                     </div>
                     <div className="text-right">
-                      <div className="text-2xl font-bold text-gray-800">{bid.amount}</div>
+                      <div className="text-2xl font-bold text-gray-800">${bid.amount}</div>
                       <div className={`text-xs font-semibold ${paidBid ? "text-red-600" : "text-green-600"}`}>
                         {paidBid ? "PAID" : "KEPT"}
                       </div>
@@ -116,8 +127,8 @@ export function ResultsDisplay({ bids, onNextRound, onFinishGame, isAdvancing }:
         {/* Explanation */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
           <p className="text-sm text-blue-800">
-            <strong>Currency Deductions:</strong> Round 1 bidders only paid if they backed Song {winningSong} (the winner).
-            Round 2 bidders paid regardless. Everyone else kept their currency!
+            <strong>Currency Deductions:</strong> Promise Phase bidders only paid if they backed Song {winningSong} (the winner).
+            Bribe Phase bidders paid regardless. Everyone else kept their currency!
           </p>
         </div>
 
@@ -133,10 +144,10 @@ export function ResultsDisplay({ bids, onNextRound, onFinishGame, isAdvancing }:
           </Button>
           <Button
             onClick={onNextRound}
-            disabled={isAdvancing}
+            disabled={isAdvancing || countdown > 0}
             className="w-full"
           >
-            {isAdvancing ? "Starting Next Round..." : "Next Round"}
+            {isAdvancing ? "Starting Next Round..." : countdown > 0 ? `Next Round (${countdown}s)` : "Next Round"}
           </Button>
         </div>
       </CardContent>

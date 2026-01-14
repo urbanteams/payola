@@ -41,15 +41,12 @@ export function PlayerList({ players, currentRound }: PlayerListProps) {
                 </span>
               </div>
 
-              {player.isMe && player.currencyBalance !== null && player.currencyBalance !== undefined && (
+              {player.currencyBalance !== null && player.currencyBalance !== undefined ? (
                 <div className="text-right">
-                  <div className="text-2xl font-bold text-green-600">{player.currencyBalance}</div>
-                  <div className="text-xs text-gray-600">currency</div>
+                  <div className="text-2xl font-bold text-green-600">${player.currencyBalance}</div>
                 </div>
-              )}
-
-              {!player.isMe && (
-                <div className="text-sm text-gray-500">Hidden</div>
+              ) : (
+                <div className="text-sm text-gray-500">-</div>
               )}
             </div>
           ))}

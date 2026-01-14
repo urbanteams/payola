@@ -51,8 +51,9 @@ export async function GET(
     const allPlayersSubmittedRound1 = game.players.length > 0 && round1Bids.length === game.players.length;
 
     // Check if player needs to submit Round 2 bid
+    // Only show Bribe Phase interface after ALL Promise Phase bids are submitted
     const myRound1Bid = round1Bids.find(b => b.playerId === session.playerId);
-    const needsRound2Bid = myRound1Bid?.amount === 0 && !round2Bids.find(b => b.playerId === session.playerId);
+    const needsRound2Bid = allPlayersSubmittedRound1 && myRound1Bid?.amount === 0 && !round2Bids.find(b => b.playerId === session.playerId);
 
     return NextResponse.json({
       game: {
@@ -60,14 +61,15 @@ export async function GET(
         roomCode: game.roomCode,
         status: game.status,
         roundNumber: game.roundNumber,
+        winningSong: game.winningSong,
       },
       players: game.players.map(p => ({
         id: p.id,
         name: p.name,
-        currencyBalance: p.id === session.playerId ? p.currencyBalance : null, // Only show own balance
+        currencyBalance: p.currencyBalance, // Show all players' balances
         isMe: p.id === session.playerId,
       })),
-      currentBid: myBid ? {
+      currentBid: (myBid && !needsRound2Bid) ? {
         song: myBid.song,
         amount: myBid.amount,
         round: myBid.round,
@@ -77,6 +79,14 @@ export async function GET(
         needsRound2Bid,
         waitingForRound2: allPlayersSubmittedRound1 && !needsRound2Bid && round2Bids.length < round1Bids.filter(b => b.amount === 0).length,
       },
+      // Show Promise Phase (round 1) bids during Bribe Phase (ROUND2 status)
+      promisePhaseBids: (game.status === "ROUND2" || game.status === "RESULTS") ? round1Bids.map(b => ({
+        playerId: b.playerId,
+        playerName: game.players.find(p => p.id === b.playerId)?.name,
+        song: b.song,
+        amount: b.amount,
+        round: b.round,
+      })) : null,
       // Only show all bids when in RESULTS state
       allBids: game.status === "RESULTS" ? currentRoundBids.map(b => ({
         playerId: b.playerId,

@@ -15,6 +15,7 @@ model Game {
   roomCode    String   @unique
   status      String   // LOBBY, ROUND1, ROUND2, RESULTS, FINISHED
   roundNumber Int      @default(1) // Track multiple game rounds
+  winningSong String?  // A, B, or C - winner for current round (set when entering RESULTS)
   players     Player[]
   bids        Bid[]
   createdAt   DateTime @default(now())
@@ -38,7 +39,7 @@ model Bid {
   game      Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
   playerId  String
   player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  round     Int      // 1 or 2 (bidding round within a game round)
+  round     Int      // 1=Promise Phase or 2=Bribe Phase (bidding phase within a game round)
   gameRound Int      // Overall game round number
   song      String   // "A", "B", or "C"
   amount    Int      // Bid amount in currency (increments of 1)

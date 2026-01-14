@@ -63,33 +63,12 @@ export async function POST(
     }
 
     if (action === "nextRound") {
-      // Calculate results and start next round
+      // Start next round (deductions already applied at end of Bribe Phase)
       if (game.status !== "RESULTS") {
         return NextResponse.json(
           { error: "Not in results phase" },
           { status: 400 }
         );
-      }
-
-      // Get current round bids
-      const currentRoundBids = game.bids.filter(b => b.gameRound === game.roundNumber);
-
-      // Calculate winner and deductions
-      const songTotals = calculateSongTotals(currentRoundBids);
-      const winningSong = determineWinningSong(songTotals);
-      const deductions = calculateCurrencyDeductions(currentRoundBids, winningSong);
-
-      // Update player balances
-      for (const [playerId, deduction] of deductions.entries()) {
-        const currentPlayer = game.players.find(p => p.id === playerId);
-        if (currentPlayer) {
-          await prisma.player.update({
-            where: { id: playerId },
-            data: {
-              currencyBalance: Math.max(0, currentPlayer.currencyBalance - deduction),
-            },
-          });
-        }
       }
 
       // Start next round
@@ -98,6 +77,7 @@ export async function POST(
         data: {
           status: "ROUND1",
           roundNumber: game.roundNumber + 1,
+          winningSong: null, // Clear winner for new round
         },
       });
 

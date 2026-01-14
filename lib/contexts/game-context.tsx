@@ -8,6 +8,7 @@ interface GameState {
     roomCode: string;
     status: string;
     roundNumber: number;
+    winningSong: string | null;
   };
   players: Array<{
     id: string;
@@ -25,6 +26,13 @@ interface GameState {
     needsRound2Bid: boolean;
     waitingForRound2: boolean;
   };
+  promisePhaseBids: Array<{
+    playerId: string;
+    playerName?: string;
+    song: string;
+    amount: number;
+    round: number;
+  }> | null;
   allBids: Array<{
     playerId: string;
     playerName?: string;
