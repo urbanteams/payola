@@ -55,6 +55,12 @@ export async function GET(
     const myRound1Bid = round1Bids.find(b => b.playerId === session.playerId);
     const needsRound2Bid = allPlayersSubmittedRound1 && myRound1Bid?.amount === 0 && !round2Bids.find(b => b.playerId === session.playerId);
 
+    // Fetch all tokens for any state where map is shown
+    const tokens = await prisma.influenceToken.findMany({
+      where: { gameId },
+      include: { player: { select: { name: true, playerColor: true } } },
+    });
+
     return NextResponse.json({
       game: {
         id: game.id,
@@ -62,12 +68,32 @@ export async function GET(
         status: game.status,
         roundNumber: game.roundNumber,
         winningSong: game.winningSong,
+        turnOrderA: game.turnOrderA ? JSON.parse(game.turnOrderA) : null,
+        turnOrderB: game.turnOrderB ? JSON.parse(game.turnOrderB) : null,
+        turnOrderC: game.turnOrderC ? JSON.parse(game.turnOrderC) : null,
+        mapType: game.mapType,
+        mapLayout: game.mapLayout,
+        highlightedEdges: game.highlightedEdges,
+        currentTurnIndex: game.currentTurnIndex,
+        placementTimeout: game.placementTimeout,
       },
       players: game.players.map(p => ({
         id: p.id,
         name: p.name,
         currencyBalance: p.currencyBalance, // Show all players' balances
+        victoryPoints: p.victoryPoints,
+        playerColor: p.playerColor,
         isMe: p.id === session.playerId,
+      })),
+      tokens: tokens.map(t => ({
+        id: t.id,
+        edgeId: t.edgeId,
+        playerId: t.playerId,
+        playerName: t.player.name,
+        playerColor: t.player.playerColor,
+        tokenType: t.tokenType,
+        orientation: t.orientation,
+        roundNumber: t.roundNumber,
       })),
       currentBid: (myBid && !needsRound2Bid) ? {
         song: myBid.song,

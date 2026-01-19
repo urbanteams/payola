@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { calculateSongTotals, determineWinningSong, calculateCurrencyDeductions } from "@/lib/game/bidding-logic";
+import { generateMapLayout, serializeMapLayout, deserializeMapLayout } from "@/lib/game/map-generator";
+import { getTotalRounds, getTokensPerRound, getSongImplications } from "@/lib/game/song-implications";
+import { selectRandomVertices } from "@/lib/game/token-placement-logic";
+import { processAllAITokenPlacements } from "@/lib/game/ai-token-placement";
 
 export async function POST(
   request: NextRequest,
@@ -15,7 +19,7 @@ export async function POST(
 
     const { gameId } = await params;
     const body = await request.json();
-    const { action } = body; // "start" | "nextRound" | "finish"
+    let { action } = body; // "start" | "nextRound" | "startTokenPlacement" | "completeTokenPlacement" | "finish"
 
     const game = await prisma.game.findUnique({
       where: { id: gameId },
@@ -54,16 +58,46 @@ export async function POST(
         );
       }
 
+      // Generate map layout based on player count
+      // Map type (NYC36 vs NYC48) is determined automatically
+      const playerCount = game.players.length;
+      const mapLayout = generateMapLayout(playerCount);
+      const totalRounds = getTotalRounds(playerCount);
+
+      // Generate turn orders for the first round (these are index strings like "012012")
+      const implications = getSongImplications(playerCount);
+
+      // Convert turn order indices to player IDs
+      const convertIndicesToPlayerIds = (indexString: string): string[] => {
+        return indexString.split('').map(indexChar => {
+          const index = parseInt(indexChar, 10);
+          return game.players[index].id;
+        });
+      };
+
+      // Generate highlighted edges for the first round to show on initial map view
+      const tokensPerRound = getTokensPerRound(playerCount);
+      const highlightedEdges = selectRandomVertices(mapLayout, [], tokensPerRound);
+
       await prisma.game.update({
         where: { id: gameId },
-        data: { status: "ROUND1" },
+        data: {
+          status: "ROUND1",
+          mapType: mapLayout.mapType, // Store which map was selected (NYC36 or NYC48)
+          mapLayout: serializeMapLayout(mapLayout),
+          totalRounds,
+          turnOrderA: JSON.stringify(convertIndicesToPlayerIds(implications.songA)),
+          turnOrderB: JSON.stringify(convertIndicesToPlayerIds(implications.songB)),
+          turnOrderC: implications.songC ? JSON.stringify(convertIndicesToPlayerIds(implications.songC)) : null,
+          highlightedEdges: JSON.stringify(highlightedEdges), // Store highlighted edges for initial map view
+        },
       });
 
       return NextResponse.json({ success: true });
     }
 
-    if (action === "nextRound") {
-      // Start next round (deductions already applied at end of Bribe Phase)
+    if (action === "startTokenPlacement") {
+      // Transition from RESULTS to TOKEN_PLACEMENT phase
       if (game.status !== "RESULTS") {
         return NextResponse.json(
           { error: "Not in results phase" },
@@ -71,17 +105,183 @@ export async function POST(
         );
       }
 
-      // Start next round
+      if (!game.mapLayout || !game.winningSong) {
+        return NextResponse.json(
+          { error: "Missing map or winning song data" },
+          { status: 400 }
+        );
+      }
+
+      // Reuse highlighted edges that were already generated for this round
+      if (!game.highlightedEdges) {
+        return NextResponse.json(
+          { error: "No highlighted edges available for this round" },
+          { status: 500 }
+        );
+      }
+
+      const highlightedEdges = JSON.parse(game.highlightedEdges);
+
+      // Update game state to TOKEN_PLACEMENT
       await prisma.game.update({
         where: { id: gameId },
         data: {
-          status: "ROUND1",
-          roundNumber: game.roundNumber + 1,
-          winningSong: null, // Clear winner for new round
+          status: "TOKEN_PLACEMENT",
+          // DO NOT update highlightedEdges - reuse existing ones
+          currentTurnIndex: 0, // Start at first turn
+          placementTimeout: new Date(Date.now() + 60000), // 60 second timeout
         },
       });
 
-      return NextResponse.json({ success: true });
+      return NextResponse.json({
+        success: true,
+        highlightedEdges,
+      });
+    }
+
+    if (action === "completeTokenPlacement") {
+      // Called when all tokens placed - clean up and advance to next round
+      if (game.status !== "TOKEN_PLACEMENT") {
+        return NextResponse.json(
+          { error: "Not in token placement phase" },
+          { status: 400 }
+        );
+      }
+
+      // Clear token placement data
+      await prisma.game.update({
+        where: { id: gameId },
+        data: {
+          highlightedEdges: null,
+          currentTurnIndex: null,
+          placementTimeout: null,
+        },
+      });
+
+      // Change action to nextRound and fall through to continue processing
+      action = "nextRound";
+    }
+
+    if (action === "nextRound") {
+      if (game.status === "RESULTS") {
+        // CHANGED: Transition to TOKEN_PLACEMENT instead of skipping to next round
+        // Directly set up token placement
+        if (!game.mapLayout || !game.winningSong) {
+          return NextResponse.json(
+            { error: "Missing map or winning song data" },
+            { status: 400 }
+          );
+        }
+
+        // Reuse highlighted edges that were already generated for this round
+        if (!game.highlightedEdges) {
+          return NextResponse.json(
+            { error: "No highlighted edges available for this round" },
+            { status: 500 }
+          );
+        }
+
+        const highlightedEdges = JSON.parse(game.highlightedEdges);
+
+        await prisma.game.update({
+          where: { id: gameId },
+          data: {
+            status: "TOKEN_PLACEMENT",
+            // DO NOT update highlightedEdges - reuse existing ones
+            currentTurnIndex: 0,
+            placementTimeout: new Date(Date.now() + 60000),
+          },
+        });
+
+        // Process AI token placements immediately
+        try {
+          const allTokensPlaced = await processAllAITokenPlacements(gameId);
+          console.log('AI token placements processed successfully, all placed:', allTokensPlaced);
+
+          // If AI players placed all tokens, the round is complete
+          // The game will transition automatically on next poll
+        } catch (err) {
+          console.error('Failed to process AI token placements:', err);
+        }
+
+        return NextResponse.json({
+          success: true,
+          highlightedEdges,
+        });
+      }
+
+      // Transition from TOKEN_PLACEMENT back to ROUND1 for next bidding round
+      if (game.status === "TOKEN_PLACEMENT") {
+        // Check if map is complete (all vertices filled)
+        const mapLayout = game.mapLayout ? deserializeMapLayout(game.mapLayout) : null;
+        if (!mapLayout) {
+          return NextResponse.json(
+            { error: "Map layout not found" },
+            { status: 400 }
+          );
+        }
+
+        const totalVertices = mapLayout.edges.length;
+        const placedTokens = await prisma.influenceToken.count({
+          where: { gameId },
+        });
+
+        // If map is complete, go to FINISHED
+        if (placedTokens >= totalVertices) {
+          await prisma.game.update({
+            where: { id: gameId },
+            data: { status: "FINISHED" },
+          });
+
+          return NextResponse.json({
+            success: true,
+            mapComplete: true,
+          });
+        }
+
+        // Otherwise, start next round
+        const playerCount = game.players.length;
+        const implications = getSongImplications(playerCount);
+
+        // Convert turn order indices to player IDs
+        const convertIndicesToPlayerIds = (indexString: string): string[] => {
+          return indexString.split('').map(indexChar => {
+            const index = parseInt(indexChar, 10);
+            return game.players[index].id;
+          });
+        };
+
+        // Generate highlighted edges for the next round
+        const existingTokens = await prisma.influenceToken.findMany({
+          where: { gameId },
+          select: { edgeId: true },
+        });
+        const tokensPerRound = getTokensPerRound(playerCount);
+        const highlightedEdges = selectRandomVertices(mapLayout, existingTokens, tokensPerRound);
+
+        await prisma.game.update({
+          where: { id: gameId },
+          data: {
+            status: "ROUND1",
+            roundNumber: game.roundNumber + 1,
+            winningSong: null, // Clear winner for new round
+            turnOrderA: JSON.stringify(convertIndicesToPlayerIds(implications.songA)),
+            turnOrderB: JSON.stringify(convertIndicesToPlayerIds(implications.songB)),
+            turnOrderC: implications.songC ? JSON.stringify(convertIndicesToPlayerIds(implications.songC)) : null,
+            highlightedEdges: JSON.stringify(highlightedEdges), // Store highlighted edges for preview
+          },
+        });
+
+        return NextResponse.json({
+          success: true,
+          mapComplete: false,
+        });
+      }
+
+      return NextResponse.json(
+        { error: "Cannot advance from current game state" },
+        { status: 400 }
+      );
     }
 
     if (action === "finish") {

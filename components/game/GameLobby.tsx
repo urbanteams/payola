@@ -76,7 +76,8 @@ export function GameLobby({ roomCode, players, onStartGame, isStarting }: GameLo
               <li>• The song with the most bids wins</li>
               <li>• Round 1 bidders only pay if they backed the winner</li>
               <li>• Round 2 bidders always pay their bid</li>
-              <li>• Most currency remaining wins!</li>
+              <li>• The winning song determines how many influence tokens you place on the board</li>
+              <li>• Win the game by controlling different regions on the board</li>
             </ul>
           </div>
 

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/Button";
 
 export default function Home() {
   const router = useRouter();
-  const [mode, setMode] = useState<"menu" | "create" | "join">("menu");
+  const [mode, setMode] = useState<"menu" | "create" | "join" | "vsai">("menu");
   const [playerName, setPlayerName] = useState("");
   const [roomCode, setRoomCode] = useState("");
   const [loading, setLoading] = useState(false);
@@ -83,6 +83,40 @@ export default function Home() {
     }
   };
 
+  const handleCreateAIGame = async () => {
+    if (!playerName.trim()) {
+      setError("Please enter your name");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch("/api/game/create-ai", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ playerName: playerName.trim() }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Server error:", errorData);
+        const errorMsg = errorData.details || errorData.error || "Failed to create AI game";
+        throw new Error(errorMsg);
+      }
+
+      const data = await response.json();
+      router.push(`/game/${data.gameId}`);
+    } catch (err) {
+      console.error("Create AI game error:", err);
+      setError(err instanceof Error ? err.message : "Failed to create AI game");
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-50 flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
@@ -98,6 +132,9 @@ export default function Home() {
               <Button onClick={() => setMode("create")} className="w-full text-lg py-3">
                 Create New Game
               </Button>
+              <Button onClick={() => setMode("vsai")} variant="secondary" className="w-full text-lg py-3 bg-purple-600 hover:bg-purple-700 text-white">
+                VS AI (3-Player Mode)
+              </Button>
               <Button onClick={() => setMode("join")} variant="secondary" className="w-full text-lg py-3">
                 Join Existing Game
               </Button>
@@ -106,10 +143,8 @@ export default function Home() {
               <div className="mt-8 bg-gray-50 rounded-lg p-4">
                 <h3 className="font-semibold text-gray-700 mb-2">About Payola:</h3>
                 <ul className="text-sm text-gray-600 space-y-1">
-                  <li>• Bid on songs to make them win</li>
-                  <li>• Strategic two-round bidding system</li>
-                  <li>• Hidden currency balances</li>
-                  <li>• Unique tie-breaking rules</li>
+                  <li>• Make promises and bribes to radio stations to get them to play your preferred songs</li>
+                  <li>• Expand your influence on the map if your preferred songs get played</li>
                   <li>• 3+ players required</li>
                 </ul>
               </div>
@@ -141,6 +176,45 @@ export default function Home() {
 
               <Button onClick={handleCreateGame} disabled={loading} className="w-full">
                 {loading ? "Creating..." : "Create Game"}
+              </Button>
+              <Button onClick={() => { setMode("menu"); setError(""); }} variant="secondary" className="w-full">
+                Back
+              </Button>
+            </div>
+          )}
+
+          {mode === "vsai" && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Your Name:
+                </label>
+                <input
+                  type="text"
+                  value={playerName}
+                  onChange={(e) => setPlayerName(e.target.value)}
+                  placeholder="Enter your name"
+                  disabled={loading}
+                  className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none disabled:opacity-50 text-gray-900"
+                  onKeyDown={(e) => e.key === "Enter" && handleCreateAIGame()}
+                />
+              </div>
+
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                  {error}
+                </div>
+              )}
+
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                <p className="text-sm text-purple-800">
+                  <strong>VS AI Mode:</strong> Play against 2 AI opponents in a 3-player game.
+                  AI players make random bids automatically.
+                </p>
+              </div>
+
+              <Button onClick={handleCreateAIGame} disabled={loading} className="w-full bg-purple-600 hover:bg-purple-700 text-white">
+                {loading ? "Creating..." : "Start AI Game"}
               </Button>
               <Button onClick={() => { setMode("menu"); setError(""); }} variant="secondary" className="w-full">
                 Back

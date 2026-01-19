@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { calculateSongTotals, determineWinningSong, calculateCurrencyDeductions } from "@/lib/game/bidding-logic";
+import { processAIBids } from "@/lib/game/ai-bidding";
 
 export async function POST(
   request: NextRequest,
@@ -124,7 +125,17 @@ export async function POST(
       } else {
         // No one bid 0, skip to results - determine winner and apply deductions
         const songTotals = calculateSongTotals(allBids);
-        const winningSong = determineWinningSong(songTotals);
+        const playerCount = game.players.length;
+        const availableSongs = playerCount === 3 ? ["A", "B"] : ["A", "B", "C"];
+        let winningSong = determineWinningSong(songTotals, undefined, availableSongs as any);
+
+        // If tie (null), randomly select from tied songs
+        if (winningSong === null) {
+          const maxTotal = Math.max(...availableSongs.map((s: any) => songTotals[s]));
+          const tiedSongs = availableSongs.filter((s: any) => songTotals[s] === maxTotal);
+          winningSong = tiedSongs[Math.floor(Math.random() * tiedSongs.length)] as any;
+        }
+
         const deductions = calculateCurrencyDeductions(allBids, winningSong);
 
         console.log('End of Round 1 (no bribes) - Calculating deductions:', {
@@ -189,7 +200,17 @@ export async function POST(
 
         // Calculate winner and deductions
         const songTotals = calculateSongTotals(allCurrentRoundBids);
-        const winningSong = determineWinningSong(songTotals);
+        const playerCount = game.players.length;
+        const availableSongs = playerCount === 3 ? ["A", "B"] : ["A", "B", "C"];
+        let winningSong = determineWinningSong(songTotals, undefined, availableSongs as any);
+
+        // If tie (null), randomly select from tied songs
+        if (winningSong === null) {
+          const maxTotal = Math.max(...availableSongs.map((s: any) => songTotals[s]));
+          const tiedSongs = availableSongs.filter((s: any) => songTotals[s] === maxTotal);
+          winningSong = tiedSongs[Math.floor(Math.random() * tiedSongs.length)] as any;
+        }
+
         const deductions = calculateCurrencyDeductions(allCurrentRoundBids, winningSong);
 
         console.log('End of Bribe Phase - Calculating deductions:', {
@@ -219,6 +240,187 @@ export async function POST(
             winningSong: winningSong
           },
         });
+      }
+    }
+
+    // Process AI bids immediately if there are any AI players
+    if (game.players.some(p => p.isAI)) {
+      try {
+        await processAIBids(gameId);
+        console.log('AI bids processed successfully');
+
+        // Re-fetch game to check if we need to advance state
+        const updatedGame = await prisma.game.findUnique({
+          where: { id: gameId },
+          include: {
+            players: true,
+            bids: {
+              where: { gameRound: game.roundNumber },
+            },
+          },
+        });
+
+        if (!updatedGame) {
+          return NextResponse.json({ success: true });
+        }
+
+        const updatedRound1Bids = updatedGame.bids.filter(b => b.round === 1);
+        const updatedRound2Bids = updatedGame.bids.filter(b => b.round === 2);
+
+        // If we're in ROUND1 and all Round 1 bids are in, advance to ROUND2 or RESULTS
+        if (updatedGame.status === "ROUND1" && updatedRound1Bids.length === updatedGame.players.length) {
+          const zeroBidders = updatedRound1Bids.filter(b => b.amount === 0);
+
+          if (zeroBidders.length > 0) {
+            // Transition to ROUND2
+            await prisma.game.update({
+              where: { id: gameId },
+              data: { status: "ROUND2" },
+            });
+
+            // Process Round 2 AI bids
+            await processAIBids(gameId);
+
+            // Re-check if all Round 2 bids are now in
+            const finalRound2Count = await prisma.bid.count({
+              where: { gameId, gameRound: game.roundNumber, round: 2 },
+            });
+
+            if (finalRound2Count === zeroBidders.length) {
+              // All Round 2 bids are in, advance to RESULTS
+              const allBids = await prisma.bid.findMany({
+                where: { gameId, gameRound: game.roundNumber },
+              });
+
+              const songTotals = calculateSongTotals(allBids);
+              const playerCount = updatedGame.players.length;
+              const availableSongs = playerCount === 3 ? ["A", "B"] : ["A", "B", "C"];
+              let winningSong = determineWinningSong(songTotals, undefined, availableSongs as any);
+
+              if (winningSong === null) {
+                const maxTotal = Math.max(...availableSongs.map((s: any) => songTotals[s]));
+                const tiedSongs = availableSongs.filter((s: any) => songTotals[s] === maxTotal);
+                winningSong = tiedSongs[Math.floor(Math.random() * tiedSongs.length)] as any;
+              }
+
+              const deductions = calculateCurrencyDeductions(allBids, winningSong);
+
+              console.log('AI Round 2 complete - Calculating deductions:', {
+                songTotals,
+                winningSong,
+                deductions: Array.from(deductions.entries()),
+              });
+
+              // Update player balances
+              for (const [playerId, deduction] of deductions.entries()) {
+                const currentPlayer = updatedGame.players.find(p => p.id === playerId);
+                if (currentPlayer) {
+                  await prisma.player.update({
+                    where: { id: playerId },
+                    data: {
+                      currencyBalance: Math.max(0, currentPlayer.currencyBalance - deduction),
+                    },
+                  });
+                }
+              }
+
+              await prisma.game.update({
+                where: { id: gameId },
+                data: {
+                  status: "RESULTS",
+                  winningSong: winningSong
+                },
+              });
+            }
+          } else {
+            // No zero bidders, skip to RESULTS
+            const songTotals = calculateSongTotals(updatedRound1Bids);
+            const playerCount = updatedGame.players.length;
+            const availableSongs = playerCount === 3 ? ["A", "B"] : ["A", "B", "C"];
+            let winningSong = determineWinningSong(songTotals, undefined, availableSongs as any);
+
+            if (winningSong === null) {
+              const maxTotal = Math.max(...availableSongs.map((s: any) => songTotals[s]));
+              const tiedSongs = availableSongs.filter((s: any) => songTotals[s] === maxTotal);
+              winningSong = tiedSongs[Math.floor(Math.random() * tiedSongs.length)] as any;
+            }
+
+            const deductions = calculateCurrencyDeductions(updatedRound1Bids, winningSong);
+
+            console.log('AI Round 1 complete (no bribes) - Calculating deductions:', {
+              songTotals,
+              winningSong,
+              deductions: Array.from(deductions.entries()),
+            });
+
+            // Update player balances
+            for (const [playerId, deduction] of deductions.entries()) {
+              const currentPlayer = updatedGame.players.find(p => p.id === playerId);
+              if (currentPlayer) {
+                await prisma.player.update({
+                  where: { id: playerId },
+                  data: {
+                    currencyBalance: Math.max(0, currentPlayer.currencyBalance - deduction),
+                  },
+                });
+              }
+            }
+
+            await prisma.game.update({
+              where: { id: gameId },
+              data: {
+                status: "RESULTS",
+                winningSong: winningSong
+              },
+            });
+          }
+        }
+
+        // If we're in ROUND2 and all Round 2 bids are in, advance to RESULTS
+        if (updatedGame.status === "ROUND2" && updatedRound2Bids.length === updatedRound1Bids.filter(b => b.amount === 0).length) {
+          const allBids = updatedGame.bids;
+          const songTotals = calculateSongTotals(allBids);
+          const playerCount = updatedGame.players.length;
+          const availableSongs = playerCount === 3 ? ["A", "B"] : ["A", "B", "C"];
+          let winningSong = determineWinningSong(songTotals, undefined, availableSongs as any);
+
+          if (winningSong === null) {
+            const maxTotal = Math.max(...availableSongs.map((s: any) => songTotals[s]));
+            const tiedSongs = availableSongs.filter((s: any) => songTotals[s] === maxTotal);
+            winningSong = tiedSongs[Math.floor(Math.random() * tiedSongs.length)] as any;
+          }
+
+          const deductions = calculateCurrencyDeductions(allBids, winningSong);
+
+          console.log('AI Round 2 complete - Calculating deductions:', {
+            songTotals,
+            winningSong,
+            deductions: Array.from(deductions.entries()),
+          });
+
+          // Update player balances
+          for (const [playerId, deduction] of deductions.entries()) {
+            const currentPlayer = updatedGame.players.find(p => p.id === playerId);
+            if (currentPlayer) {
+              await prisma.player.update({
+                where: { id: playerId },
+                data: {
+                  currencyBalance: Math.max(0, currentPlayer.currencyBalance - deduction),
+                },
+              });
+            }
+          }
+
+          await prisma.game.update({
+            where: { id: gameId },
+            data: {
+              status: "RESULTS",
+              winningSong: winningSong
+            },
+          });
+        }
+      } catch (err) {
+        console.error('Failed to process AI bids:', err);
       }
     }
 

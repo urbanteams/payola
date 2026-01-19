@@ -7,6 +7,7 @@ interface Player {
   id: string;
   name: string;
   currencyBalance?: number | null;
+  playerColor?: string | null;
   isMe: boolean;
 }
 
@@ -23,33 +24,41 @@ export function PlayerList({ players, currentRound }: PlayerListProps) {
       </CardHeader>
       <CardContent>
         <div className="space-y-2">
-          {players.map((player) => (
-            <div
-              key={player.id}
-              className={`
-                border-2 rounded-lg p-3 flex items-center justify-between
-                ${player.isMe ? "bg-blue-50 border-blue-300" : "bg-white border-gray-200"}
-              `}
-            >
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-bold">
-                  {player.name.charAt(0).toUpperCase()}
-                </div>
-                <span className="font-medium text-gray-800">
-                  {player.name}
-                  {player.isMe && <span className="text-blue-600 ml-2">(You)</span>}
-                </span>
-              </div>
+          {players.map((player) => {
+            const borderColor = player.playerColor || '#d1d5db';
+            const textColor = player.playerColor || '#1f2937';
 
-              {player.currencyBalance !== null && player.currencyBalance !== undefined ? (
-                <div className="text-right">
-                  <div className="text-2xl font-bold text-green-600">${player.currencyBalance}</div>
+            return (
+              <div
+                key={player.id}
+                className={`border-2 rounded-lg p-3 flex items-center justify-between ${
+                  player.isMe ? "bg-blue-50" : "bg-white"
+                }`}
+                style={{ borderColor }}
+              >
+                <div className="flex items-center space-x-3">
+                  {player.playerColor && (
+                    <div
+                      className="w-6 h-6 rounded-full border-2 border-gray-700"
+                      style={{ backgroundColor: player.playerColor }}
+                    />
+                  )}
+                  <span className="font-bold" style={{ color: textColor }}>
+                    {player.name}
+                    {player.isMe && <span className="text-blue-600 ml-2">(You)</span>}
+                  </span>
                 </div>
-              ) : (
-                <div className="text-sm text-gray-500">-</div>
-              )}
-            </div>
-          ))}
+
+                {player.currencyBalance !== null && player.currencyBalance !== undefined ? (
+                  <div className="text-right">
+                    <div className="text-2xl font-bold text-green-600">${player.currencyBalance}</div>
+                  </div>
+                ) : (
+                  <div className="text-sm text-gray-500">-</div>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         <div className="mt-4 text-center">

@@ -13,18 +13,72 @@ interface Bid {
   round: number;
 }
 
+interface Player {
+  id: string;
+  name: string;
+  isMe: boolean;
+}
+
 interface ResultsDisplayProps {
   bids: Bid[];
   onNextRound: () => void;
   onFinishGame: () => void;
   isAdvancing: boolean;
   forcedWinner?: "A" | "B" | "C" | null;
+  players?: Player[]; // Player list
+  turnOrderA?: string[] | null; // Array of player IDs
+  turnOrderB?: string[] | null; // Array of player IDs
+  turnOrderC?: string[] | null; // Array of player IDs
 }
 
-export function ResultsDisplay({ bids, onNextRound, onFinishGame, isAdvancing, forcedWinner }: ResultsDisplayProps) {
+export function ResultsDisplay({
+  bids,
+  onNextRound,
+  onFinishGame,
+  isAdvancing,
+  forcedWinner,
+  players,
+  turnOrderA,
+  turnOrderB,
+  turnOrderC
+}: ResultsDisplayProps) {
   const songTotals = calculateSongTotals(bids);
   const winningSong = determineWinningSong(songTotals, forcedWinner || undefined);
-  const [countdown, setCountdown] = useState(10);
+  const [countdown, setCountdown] = useState(7);
+
+  // Get the turn order for the winning song
+  let winningTurnOrder: string[] | null = null;
+  if (winningSong === "A") winningTurnOrder = turnOrderA || null;
+  if (winningSong === "B") winningTurnOrder = turnOrderB || null;
+  if (winningSong === "C") winningTurnOrder = turnOrderC || null;
+
+  // Convert turn order (player IDs) to player names with bold for current player
+  const winningImplicationDisplay = (() => {
+    if (!winningTurnOrder || !players || players.length === 0) return null;
+
+    // Map player IDs to player objects
+    const playerObjects = winningTurnOrder.map(playerId => {
+      const player = players.find(p => p.id === playerId);
+      return player || { id: playerId, name: 'Unknown', isMe: false };
+    });
+
+    return (
+      <span>
+        {playerObjects.map((player, i) => {
+          return (
+            <React.Fragment key={i}>
+              {i > 0 && <span className="mx-1">→</span>}
+              {player.isMe ? (
+                <span className="font-bold text-amber-800">{player.name}</span>
+              ) : (
+                <span>{player.name}</span>
+              )}
+            </React.Fragment>
+          );
+        })}
+      </span>
+    );
+  })();
 
   // Countdown timer
   useEffect(() => {
@@ -51,11 +105,33 @@ export function ResultsDisplay({ bids, onNextRound, onFinishGame, isAdvancing, f
         <h2 className="text-3xl font-bold text-center text-gray-800">Round Results</h2>
       </CardHeader>
       <CardContent>
+        {/* Winning Song Implications */}
+        {winningImplicationDisplay && (
+          <div className="mb-6 bg-gradient-to-r from-yellow-50 to-amber-50 border-2 border-yellow-400 rounded-lg p-6">
+            <h3 className="text-lg font-bold text-gray-800 mb-2 text-center">🏆 Winning Song Implications</h3>
+            <p className="text-center text-sm text-gray-700 mb-3">
+              Song <span className="font-bold text-xl">{winningSong}</span> won! Token placement order:
+            </p>
+            <div className="bg-white rounded-lg p-4 text-center">
+              <div className="text-lg text-gray-700 leading-relaxed">
+                {winningImplicationDisplay}
+              </div>
+            </div>
+            <p className="text-xs text-center text-gray-600 mt-3">
+              Your name appears in bold
+            </p>
+          </div>
+        )}
+
         {/* Song Totals */}
         <div className="mb-8">
           <h3 className="text-xl font-semibold text-gray-700 mb-4 text-center">Total Bids by Song</h3>
-          <div className="grid grid-cols-3 gap-4">
-            {["A", "B", "C"].map((song) => {
+          <div className={`grid gap-4 ${players && players.length === 3 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+            {["A", "B", "C"].filter(song => {
+              // Filter out Song C for 3-player games
+              if (song === "C" && players && players.length === 3) return false;
+              return true;
+            }).map((song) => {
               const total = songTotals[song as "A" | "B" | "C"];
               const isWinner = song === winningSong;
               const color = getSongColor(song);
@@ -147,7 +223,7 @@ export function ResultsDisplay({ bids, onNextRound, onFinishGame, isAdvancing, f
             disabled={isAdvancing || countdown > 0}
             className="w-full"
           >
-            {isAdvancing ? "Starting Next Round..." : countdown > 0 ? `Next Round (${countdown}s)` : "Next Round"}
+            {isAdvancing ? "Advancing to Placement..." : countdown > 0 ? `Advance to Placement (${countdown}s)` : "Advance to Placement"}
           </Button>
         </div>
       </CardContent>

@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { generateRoomCode, generateSessionToken, createSession } from "@/lib/auth";
+import { generateMapLayout, serializeMapLayout } from "@/lib/game/map-generator";
+import { getTotalRounds } from "@/lib/game/song-implications";
+
+const PLAYER_COLORS = [
+  '#FF6B6B', // Red
+  '#4ECDC4', // Teal
+  '#FFD93D', // Yellow
+  '#6C5CE7', // Purple
+  '#00D2FF', // Cyan
+  '#FF8C42', // Orange
+];
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,16 +35,18 @@ export async function POST(request: NextRequest) {
       existingGame = await prisma.game.findUnique({ where: { roomCode } });
     }
 
-    // Create game
+    // Note: Map layout will be generated when game starts (when we know player count)
+    // Map type (NYC36 vs NYC48) is determined automatically based on player count
     const game = await prisma.game.create({
       data: {
         roomCode,
         status: "LOBBY",
         roundNumber: 1,
+        // mapType, mapLayout and totalRounds will be set when game starts
       },
     });
 
-    // Create player
+    // Create player with first color (red)
     const sessionToken = generateSessionToken();
     const player = await prisma.player.create({
       data: {
@@ -41,6 +54,7 @@ export async function POST(request: NextRequest) {
         name: playerName.trim(),
         sessionToken,
         currencyBalance: 30,
+        playerColor: PLAYER_COLORS[0], // First player gets first color
       },
     });
 

@@ -11,26 +11,40 @@ datasource db {
 }
 
 model Game {
-  id          String   @id @default(cuid())
-  roomCode    String   @unique
-  status      String   // LOBBY, ROUND1, ROUND2, RESULTS, FINISHED
-  roundNumber Int      @default(1) // Track multiple game rounds
-  winningSong String?  // A, B, or C - winner for current round (set when entering RESULTS)
-  players     Player[]
-  bids        Bid[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id               String            @id @default(cuid())
+  roomCode         String            @unique
+  status           String            // LOBBY, ROUND1, ROUND2, RESULTS, TOKEN_PLACEMENT, FINAL_RESULTS, FINISHED
+  roundNumber      Int               @default(1) // Track multiple game rounds
+  winningSong      String?           // A, B, or C - winner for current round (set when entering RESULTS)
+  mapType          String?           // "NY" or "CA" - map selection for this game
+  mapLayout        String?           // JSON serialized hex positions and types
+  totalRounds      Int?              // Calculated based on player count + vertex count
+  turnOrderA       String?           // Turn order for Song A (e.g., "012012") - player indices
+  turnOrderB       String?           // Turn order for Song B (e.g., "210021") - player indices
+  turnOrderC       String?           // Turn order for Song C (5-6 players only)
+  highlightedEdges String?           // JSON array of edge IDs highlighted for current token placement round
+  currentTurnIndex Int?              // 0-based index tracking which turn in token placement sequence
+  placementTimeout DateTime?         // When current player's token placement turn expires
+  players          Player[]
+  bids             Bid[]
+  influenceTokens  InfluenceToken[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
 }
 
 model Player {
-  id              String   @id @default(cuid())
+  id              String            @id @default(cuid())
   gameId          String
-  game            Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  game            Game              @relation(fields: [gameId], references: [id], onDelete: Cascade)
   name            String
-  sessionToken    String   @unique
-  currencyBalance Int      @default(30) // Starting currency: 30
+  sessionToken    String            @unique
+  currencyBalance Int               @default(30) // Starting currency: 30
+  victoryPoints   Int               @default(0) // For lightning hex rewards and final scoring
+  isAI            Boolean           @default(false) // True for AI players
+  playerColor     String?           // Hex color code assigned at join (e.g., "#FF6B6B")
   bids            Bid[]
-  createdAt       DateTime @default(now())
+  influenceTokens InfluenceToken[]
+  createdAt       DateTime          @default(now())
 }
 
 model Bid {
@@ -44,4 +58,20 @@ model Bid {
   song      String   // "A", "B", or "C"
   amount    Int      // Bid amount in currency (increments of 1)
   createdAt DateTime @default(now())
+}
+
+model InfluenceToken {
+  id          String   @id @default(cuid())
+  gameId      String
+  game        Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  playerId    String
+  player      Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  roundNumber Int      // Which game round this token was placed
+  edgeId      String   // Edge ID between two hexes (e.g., "e_0_0_1_0")
+  tokenType   String   // "4/0", "2/2", or "1/3"
+  orientation String   // "A" or "B" (which adjacent hex gets higher value)
+  createdAt   DateTime @default(now())
+
+  @@unique([gameId, edgeId]) // Prevent duplicate tokens on same edge
+  @@index([gameId]) // Index for faster queries
 }

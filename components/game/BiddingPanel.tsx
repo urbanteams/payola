@@ -5,14 +5,24 @@ import { Card, CardHeader, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { SongSelector, Song } from "./SongSelector";
 
+interface Player {
+  id: string;
+  name: string;
+  isMe: boolean;
+}
+
 interface BiddingPanelProps {
   currencyBalance: number;
   round: number;
   onSubmitBid: (song: Song, amount: number) => Promise<void>;
   disabled?: boolean;
+  players?: Player[]; // Player list to show names
+  turnOrderA?: string[] | null; // Array of player IDs
+  turnOrderB?: string[] | null; // Array of player IDs
+  turnOrderC?: string[] | null; // Array of player IDs
 }
 
-export function BiddingPanel({ currencyBalance, round, onSubmitBid, disabled = false }: BiddingPanelProps) {
+export function BiddingPanel({ currencyBalance, round, onSubmitBid, disabled = false, players, turnOrderA, turnOrderB, turnOrderC }: BiddingPanelProps) {
   const [selectedSong, setSelectedSong] = useState<Song | null>(null);
   const [bidAmount, setBidAmount] = useState<number>(0);
   const [submitting, setSubmitting] = useState(false);
@@ -65,6 +75,10 @@ export function BiddingPanel({ currencyBalance, round, onSubmitBid, disabled = f
             selectedSong={selectedSong}
             onSelectSong={setSelectedSong}
             disabled={disabled || submitting}
+            players={players}
+            turnOrderA={turnOrderA}
+            turnOrderB={turnOrderB}
+            turnOrderC={turnOrderC}
           />
         </div>
 
@@ -73,16 +87,19 @@ export function BiddingPanel({ currencyBalance, round, onSubmitBid, disabled = f
           <label className="block text-lg font-semibold text-gray-700 mb-2">
             {round === 1 ? "Promise Amount:" : "Bribe Amount:"}
           </label>
-          <input
-            type="number"
-            min="0"
-            max={currencyBalance}
-            value={bidAmount}
-            onChange={(e) => setBidAmount(Math.max(0, Math.min(currencyBalance, parseInt(e.target.value) || 0)))}
-            disabled={disabled || submitting}
-            className="w-full px-4 py-3 text-2xl font-bold border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none disabled:opacity-50 text-gray-900"
-            placeholder="0"
-          />
+          <div className="relative">
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-bold text-gray-700">$</span>
+            <input
+              type="number"
+              min="0"
+              max={currencyBalance}
+              value={bidAmount}
+              onChange={(e) => setBidAmount(Math.max(0, Math.min(currencyBalance, parseInt(e.target.value) || 0)))}
+              disabled={disabled || submitting}
+              className="w-full pl-8 pr-4 py-3 text-2xl font-bold border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none disabled:opacity-50 text-gray-900"
+              placeholder="0"
+            />
+          </div>
         </div>
 
         {/* Submit Button */}

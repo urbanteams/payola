@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { generateSessionToken, createSession } from "@/lib/auth";
 
+const PLAYER_COLORS = [
+  '#FF6B6B', // Red
+  '#4ECDC4', // Teal
+  '#FFD93D', // Yellow
+  '#6C5CE7', // Purple
+  '#00D2FF', // Cyan
+  '#FF8C42', // Orange
+];
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -42,6 +51,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Assign player color based on join order
+    const existingPlayerCount = game.players.length;
+    const playerColor = PLAYER_COLORS[existingPlayerCount % PLAYER_COLORS.length];
+
     // Create player
     const sessionToken = generateSessionToken();
     const player = await prisma.player.create({
@@ -50,6 +63,7 @@ export async function POST(request: NextRequest) {
         name: playerName.trim(),
         sessionToken,
         currencyBalance: 30,
+        playerColor,
       },
     });
 

@@ -8,8 +8,16 @@ import { PlayerList } from "./PlayerList";
 import { ResultsDisplay } from "./ResultsDisplay";
 import { PromisePhaseSummary } from "./PromisePhaseSummary";
 import { SpinningWheel } from "./SpinningWheel";
+import { InitialMapView } from "./InitialMapView";
+import { RoundTransitionMapView } from "./RoundTransitionMapView";
+import { TabViewSwitcher } from "./TabViewSwitcher";
+import { TokenPlacementPhase } from "./TokenPlacementPhase";
+import { MapViewer } from "./MapViewer";
 import { Card, CardContent } from "@/components/ui/Card";
-import { calculateSongTotals, isThreeWayTie } from "@/lib/game/bidding-logic";
+import { calculateSongTotals, isTieRequiringWheel } from "@/lib/game/bidding-logic";
+import { deserializeMapLayout } from "@/lib/game/map-generator";
+import { calculateSymbolsCollected, calculateBuzzHubScores } from "@/lib/game/end-game-scoring";
+import { HexIcon } from "./HexIcon";
 
 export function GameBoard() {
   const { gameState, loading, error, submitBid, advanceGame } = useGame();
@@ -17,12 +25,31 @@ export function GameBoard() {
   const [showEndGameConfirm, setShowEndGameConfirm] = useState(false);
   const [showWheel, setShowWheel] = useState(false);
   const [hasShownWheel, setHasShownWheel] = useState(false);
+  const [showInitialMap, setShowInitialMap] = useState(false);
+  const [hasShownInitialMap, setHasShownInitialMap] = useState(false);
+  const [showRoundTransition, setShowRoundTransition] = useState(false);
+  const [previousRound, setPreviousRound] = useState(1);
+  const [currentView, setCurrentView] = useState<'game' | 'map'>('game');
 
-  // Check for 3-way tie when entering RESULTS state
+  // Show initial map view when game starts
+  useEffect(() => {
+    if (
+      gameState?.game.status === "ROUND1" &&
+      gameState.game.roundNumber === 1 &&
+      !hasShownInitialMap &&
+      gameState.game.mapLayout
+    ) {
+      setShowInitialMap(true);
+      setHasShownInitialMap(true);
+    }
+  }, [gameState?.game.status, gameState?.game.roundNumber, hasShownInitialMap, gameState?.game.mapLayout]);
+
+  // Check for tie requiring wheel when entering RESULTS state
   useEffect(() => {
     if (gameState?.game.status === "RESULTS" && gameState.allBids && !hasShownWheel) {
       const songTotals = calculateSongTotals(gameState.allBids);
-      if (isThreeWayTie(songTotals)) {
+      const availableSongs = gameState.players.length === 3 ? ["A", "B"] : ["A", "B", "C"];
+      if (isTieRequiringWheel(songTotals, availableSongs as any)) {
         setShowWheel(true);
         setHasShownWheel(true);
       }
@@ -32,7 +59,21 @@ export function GameBoard() {
       setShowWheel(false);
       setHasShownWheel(false);
     }
-  }, [gameState?.game.status, gameState?.allBids, hasShownWheel]);
+  }, [gameState?.game.status, gameState?.allBids, hasShownWheel, gameState?.players.length]);
+
+  // Show round transition map when starting a new round (after round 1)
+  useEffect(() => {
+    if (
+      gameState?.game.status === "ROUND1" &&
+      gameState.game.roundNumber > previousRound &&
+      gameState.game.roundNumber > 1 &&
+      gameState.game.mapLayout &&
+      gameState.game.highlightedEdges
+    ) {
+      setShowRoundTransition(true);
+      setPreviousRound(gameState.game.roundNumber);
+    }
+  }, [gameState?.game.status, gameState?.game.roundNumber, previousRound, gameState?.game.mapLayout, gameState?.game.highlightedEdges]);
 
   const handleWheelWinnerSelected = (winner: "A" | "B" | "C") => {
     // Wait a moment before showing results
@@ -77,6 +118,14 @@ export function GameBoard() {
     } finally {
       setIsAdvancing(false);
     }
+  };
+
+  const handleContinueFromInitialMap = () => {
+    setShowInitialMap(false);
+  };
+
+  const handleContinueFromRoundTransition = () => {
+    setShowRoundTransition(false);
   };
 
   if (loading && !gameState) {
@@ -132,6 +181,41 @@ export function GameBoard() {
     );
   }
 
+  // Round Transition Map View - Show when new round starts (after round 1)
+  if (showRoundTransition && game.mapLayout && game.highlightedEdges) {
+    const highlightedEdges = JSON.parse(game.highlightedEdges);
+    return (
+      <RoundTransitionMapView
+        mapLayout={deserializeMapLayout(game.mapLayout)}
+        tokens={gameState.tokens?.map(t => ({
+          id: t.id,
+          edgeId: t.edgeId as any,
+          playerId: t.playerId,
+          playerName: t.playerName,
+          playerColor: t.playerColor,
+          tokenType: t.tokenType as any,
+          orientation: t.orientation as any,
+          roundNumber: t.roundNumber,
+        })) || []}
+        highlightedEdges={highlightedEdges}
+        roundNumber={game.roundNumber}
+        onContinue={handleContinueFromRoundTransition}
+      />
+    );
+  }
+
+  // Initial Map View - Show at game start
+  if (showInitialMap && game.mapLayout) {
+    const highlightedEdges = game.highlightedEdges ? JSON.parse(game.highlightedEdges) : [];
+    return (
+      <InitialMapView
+        mapLayout={deserializeMapLayout(game.mapLayout)}
+        highlightedEdges={highlightedEdges}
+        onContinue={handleContinueFromInitialMap}
+      />
+    );
+  }
+
   // Main game view
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-50 py-8 px-4">
@@ -142,53 +226,93 @@ export function GameBoard() {
           <p className="text-gray-600">Room Code: <span className="font-mono font-bold">{game.roomCode}</span></p>
         </div>
 
-        {/* Waiting Messages - Always at Top */}
-        {(game.status === "ROUND1" || game.status === "ROUND2") && currentBid && (
-          <div className="mb-6">
-            <Card>
-              <CardContent className="py-12 text-center">
-                <div className="text-6xl mb-4">⏳</div>
-                <h2 className="text-2xl font-bold text-gray-800 mb-2">
-                  {currentBid.round === 1 ? (
-                    currentBid.amount === 0 ? "Promise Submitted!" : "Waiting on other players"
-                  ) : (
-                    "Bribe Submitted!"
-                  )}
-                </h2>
-                <p className="text-gray-600 mb-4">
-                  You {currentBid.round === 1 ? "promised" : "bribed"} <span className="font-bold text-blue-600">${currentBid.amount}</span> on{" "}
-                  <span className="font-bold text-blue-600">Song {currentBid.song}</span>
-                </p>
-                <p className="text-sm text-gray-500">
-                  {currentBid.round === 1 && currentBid.amount === 0 ? (
-                    "Waiting for other Promise Phase players..."
-                  ) : currentBid.round === 1 && currentBid.amount > 0 ? (
-                    "Waiting for Bribe Phase players to submit their bids..."
-                  ) : (
-                    "Waiting for other players..."
-                  )}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
+        {/* Tab View Switcher - Show during bidding, results, and finished states */}
+        {(game.status === "ROUND1" || game.status === "ROUND2" || game.status === "RESULTS" || game.status === "FINISHED") && game.mapLayout && (
+          <TabViewSwitcher currentView={currentView} onViewChange={setCurrentView} />
         )}
 
-        {/* Bribe Phase in Progress - Also at Top */}
-        {(game.status === "ROUND1" || game.status === "ROUND2") && !currentBid && biddingState.waitingForRound2 && (
-          <div className="mb-6">
-            <Card>
-              <CardContent className="py-12 text-center">
-                <div className="text-6xl mb-4">⏳</div>
-                <h2 className="text-2xl font-bold text-gray-800 mb-2">Bribe Phase in Progress</h2>
+        {/* Map View - Show when map view is selected */}
+        {currentView === 'map' && game.mapLayout && game.status !== "TOKEN_PLACEMENT" && (
+          <Card className="mb-6">
+            <CardContent className="py-8">
+              <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center">Game Map</h2>
+              <MapViewer
+                mapLayout={deserializeMapLayout(game.mapLayout)}
+                tokens={gameState.tokens?.map(t => ({
+                  id: t.id,
+                  edgeId: t.edgeId as any,
+                  playerId: t.playerId,
+                  playerName: t.playerName,
+                  playerColor: t.playerColor,
+                  tokenType: t.tokenType as any,
+                  orientation: t.orientation as any,
+                  roundNumber: t.roundNumber,
+                })) || []}
+                highlightedEdges={game.highlightedEdges ? JSON.parse(game.highlightedEdges) : []}
+              />
+              <div className="mt-4 text-center">
                 <p className="text-gray-600">
-                  Players who bid 0 in the Promise Phase are now making their bids...
+                  Switch to <strong>Game View</strong> to continue playing
                 </p>
-              </CardContent>
-            </Card>
-          </div>
+              </div>
+            </CardContent>
+          </Card>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Game View Content */}
+        {currentView === 'game' && (
+          <>
+            {/* Waiting Messages - Always at Top */}
+            {(game.status === "ROUND1" || game.status === "ROUND2") && currentBid && (
+              <div className="mb-6">
+                <Card>
+                  <CardContent className="py-12 text-center">
+                    <div className="text-6xl mb-4">⏳</div>
+                    <h2 className="text-2xl font-bold text-gray-800 mb-2">
+                      {currentBid.round === 1 ? (
+                        currentBid.amount === 0 ? "Promise Submitted!" : "Waiting on other players"
+                      ) : (
+                        "Bribe Submitted!"
+                      )}
+                    </h2>
+                    <p className="text-gray-600 mb-4">
+                      You {currentBid.round === 1 ? "promised" : "bribed"} <span className="font-bold text-blue-600">${currentBid.amount}</span> on{" "}
+                      <span className="font-bold text-blue-600">Song {currentBid.song}</span>
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      {currentBid.round === 1 && currentBid.amount === 0 ? (
+                        "Waiting for other Promise Phase players..."
+                      ) : currentBid.round === 1 && currentBid.amount > 0 ? (
+                        promisePhaseBids && promisePhaseBids.length > 0 ? (
+                          "Waiting for Bribe Phase players to submit their bids..."
+                        ) : (
+                          "Waiting for other Promise Phase players..."
+                        )
+                      ) : (
+                        "Waiting for other players..."
+                      )}
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* Bribe Phase in Progress - Also at Top */}
+            {(game.status === "ROUND1" || game.status === "ROUND2") && !currentBid && biddingState.waitingForRound2 && (
+              <div className="mb-6">
+                <Card>
+                  <CardContent className="py-12 text-center">
+                    <div className="text-6xl mb-4">⏳</div>
+                    <h2 className="text-2xl font-bold text-gray-800 mb-2">Bribe Phase in Progress</h2>
+                    <p className="text-gray-600">
+                      Players who bid 0 in the Promise Phase are now making their bids...
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column - Player List */}
           <div>
             <PlayerList players={players} currentRound={game.roundNumber} />
@@ -215,6 +339,10 @@ export function GameBoard() {
                       currencyBalance={currencyBalance}
                       round={2}
                       onSubmitBid={handleSubmitBid}
+                      players={players}
+                      turnOrderA={game.turnOrderA}
+                      turnOrderB={game.turnOrderB}
+                      turnOrderC={game.turnOrderC}
                     />
                   </div>
                 ) : biddingState.waitingForRound2 ? (
@@ -228,18 +356,23 @@ export function GameBoard() {
                     currencyBalance={currencyBalance}
                     round={1}
                     onSubmitBid={handleSubmitBid}
+                    players={players}
+                    turnOrderA={game.turnOrderA}
+                    turnOrderB={game.turnOrderB}
+                    turnOrderC={game.turnOrderC}
                   />
                 )}
               </>
             )}
 
-            {/* RESULTS - Show wheel for 3-way tie, then results */}
+            {/* RESULTS - Show wheel for tie, then results */}
             {game.status === "RESULTS" && allBids && (
               <>
                 {showWheel && game.winningSong ? (
                   <SpinningWheel
                     winner={game.winningSong as "A" | "B" | "C"}
                     onWinnerSelected={handleWheelWinnerSelected}
+                    availableSongs={players.length === 3 ? ["A", "B"] : ["A", "B", "C"]}
                   />
                 ) : (
                   <ResultsDisplay
@@ -248,29 +381,223 @@ export function GameBoard() {
                     onFinishGame={() => setShowEndGameConfirm(true)}
                     isAdvancing={isAdvancing}
                     forcedWinner={game.winningSong as "A" | "B" | "C" | null}
+                    players={players}
+                    turnOrderA={game.turnOrderA}
+                    turnOrderB={game.turnOrderB}
+                    turnOrderC={game.turnOrderC}
                   />
                 )}
               </>
             )}
 
+            {/* TOKEN_PLACEMENT */}
+            {game.status === "TOKEN_PLACEMENT" && (
+              <TokenPlacementPhase
+                gameId={game.id}
+                players={players}
+                mapLayout={game.mapLayout}
+                highlightedEdges={game.highlightedEdges}
+                currentTurnIndex={game.currentTurnIndex ?? 0}
+                winningSong={game.winningSong}
+                turnOrderA={game.turnOrderA}
+                turnOrderB={game.turnOrderB}
+                turnOrderC={game.turnOrderC}
+                placementTimeout={game.placementTimeout}
+                tokens={gameState.tokens || []}
+                onTokenPlaced={() => {
+                  // Refetch will happen automatically via polling
+                }}
+              />
+            )}
+
             {/* FINISHED */}
             {game.status === "FINISHED" && (
-              <Card>
-                <CardContent className="py-12 text-center">
-                  <div className="text-6xl mb-4">🎉</div>
-                  <h2 className="text-3xl font-bold text-gray-800 mb-4">Game Over!</h2>
-                  <p className="text-gray-600 mb-6">Thanks for playing Payola!</p>
-                  <button
-                    onClick={() => window.location.href = "/"}
-                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-lg font-semibold"
-                  >
-                    Return Home
-                  </button>
-                </CardContent>
-              </Card>
+              <>
+                <Card className="mb-6">
+                  <CardContent className="py-12 text-center">
+                    <div className="text-6xl mb-4">🎉</div>
+                    <h2 className="text-3xl font-bold text-gray-800 mb-4">Game Over!</h2>
+                    <p className="text-gray-600 mb-6">Thanks for playing Payola!</p>
+                  </CardContent>
+                </Card>
+
+                {/* End Game Statistics */}
+                {game.mapLayout && gameState.tokens && (() => {
+                  const mapLayout = deserializeMapLayout(game.mapLayout);
+                  const playerInfo = players.map(p => ({
+                    id: p.id,
+                    name: p.name,
+                    color: p.playerColor || '#888888',
+                  }));
+                  const symbolCounts = calculateSymbolsCollected(
+                    gameState.tokens.map(t => ({
+                      id: t.id,
+                      edgeId: t.edgeId as any,
+                      playerId: t.playerId,
+                      playerName: t.playerName,
+                      playerColor: t.playerColor,
+                      tokenType: t.tokenType as any,
+                      orientation: t.orientation as any,
+                      roundNumber: t.roundNumber,
+                    })),
+                    mapLayout,
+                    playerInfo
+                  );
+                  const buzzHubScores = calculateBuzzHubScores(
+                    gameState.tokens.map(t => ({
+                      id: t.id,
+                      edgeId: t.edgeId as any,
+                      playerId: t.playerId,
+                      playerName: t.playerName,
+                      playerColor: t.playerColor,
+                      tokenType: t.tokenType as any,
+                      orientation: t.orientation as any,
+                      roundNumber: t.roundNumber,
+                    })),
+                    mapLayout,
+                    playerInfo
+                  );
+
+                  return (
+                    <>
+                      {/* Symbols Collected */}
+                      <Card className="mb-6">
+                        <CardContent className="py-6">
+                          <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center">Symbols Collected</h2>
+                          <div className="space-y-3">
+                            {symbolCounts
+                              .sort((a, b) => b.totalSymbols - a.totalSymbols)
+                              .map((count) => (
+                                <div
+                                  key={count.playerId}
+                                  className="p-4 rounded-lg border-2"
+                                  style={{ borderColor: count.playerColor }}
+                                >
+                                  <div className="mb-2">
+                                    <span className="font-bold text-lg" style={{ color: count.playerColor }}>
+                                      {count.playerName}
+                                    </span>
+                                  </div>
+                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                    {count.households > 0 && (
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-2xl">🏠</span>
+                                        <span className="text-black font-semibold">{count.households}</span>
+                                      </div>
+                                    )}
+                                    {count.bluesStar > 0 && (
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-2xl">🎺</span>
+                                        <span className="text-black font-semibold">{count.bluesStar}</span>
+                                      </div>
+                                    )}
+                                    {count.countryStar > 0 && (
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-2xl">🤠</span>
+                                        <span className="text-black font-semibold">{count.countryStar}</span>
+                                      </div>
+                                    )}
+                                    {count.jazzStar > 0 && (
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-2xl">🎷</span>
+                                        <span className="text-black font-semibold">{count.jazzStar}</span>
+                                      </div>
+                                    )}
+                                    {count.rockStar > 0 && (
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-2xl">🎸</span>
+                                        <span className="text-black font-semibold">{count.rockStar}</span>
+                                      </div>
+                                    )}
+                                    {count.popStar > 0 && (
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-2xl">🎤</span>
+                                        <span className="text-black font-semibold">{count.popStar}</span>
+                                      </div>
+                                    )}
+                                    {count.classicalStar > 0 && (
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-2xl">🎹</span>
+                                        <span className="text-black font-semibold">{count.classicalStar}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      {/* Buzz Hub Victory Points */}
+                      <Card className="mb-6">
+                        <CardContent className="py-6">
+                          <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center">
+                            <HexIcon type="buzzHub" className="mr-2" />
+                            Buzz Hub Victory Points
+                          </h2>
+                          <div className="space-y-3">
+                            {buzzHubScores
+                              .sort((a, b) => b.buzzHubVictoryPoints - a.buzzHubVictoryPoints)
+                              .map((score) => (
+                                <div
+                                  key={score.playerId}
+                                  className="p-4 rounded-lg border-2 flex items-center justify-between"
+                                  style={{ borderColor: score.playerColor }}
+                                >
+                                  <span className="font-bold text-lg" style={{ color: score.playerColor }}>
+                                    {score.playerName}
+                                  </span>
+                                  <span className="text-2xl font-bold text-gray-700">
+                                    {score.buzzHubVictoryPoints} VP
+                                  </span>
+                                </div>
+                              ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </>
+                  );
+                })()}
+
+                {/* Final Map State */}
+                {game.mapLayout && (
+                  <Card className="mb-6">
+                    <CardContent className="py-8">
+                      <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center">Final Map</h2>
+                      <MapViewer
+                        mapLayout={deserializeMapLayout(game.mapLayout)}
+                        tokens={gameState.tokens?.map(t => ({
+                          id: t.id,
+                          edgeId: t.edgeId as any,
+                          playerId: t.playerId,
+                          playerName: t.playerName,
+                          playerColor: t.playerColor,
+                          tokenType: t.tokenType as any,
+                          orientation: t.orientation as any,
+                          roundNumber: t.roundNumber,
+                        })) || []}
+                        highlightedEdges={[]}
+                      />
+                    </CardContent>
+                  </Card>
+                )}
+
+                <Card>
+                  <CardContent className="py-8 text-center">
+                    <button
+                      onClick={() => window.location.href = "/"}
+                      className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-lg font-semibold"
+                    >
+                      Return Home
+                    </button>
+                  </CardContent>
+                </Card>
+              </>
             )}
           </div>
         </div>
+          </>
+        )}
 
         {/* End Game Confirmation Modal */}
         {showEndGameConfirm && (
