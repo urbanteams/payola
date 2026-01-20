@@ -62,10 +62,10 @@ export async function POST(
       // Map type (NYC36 vs NYC48) is determined automatically
       const playerCount = game.players.length;
       const mapLayout = generateMapLayout(playerCount);
-      const totalRounds = getTotalRounds(playerCount);
+      const totalRounds = getTotalRounds(playerCount, game.isPOTS);
 
       // Generate turn orders for the first round (these are index strings like "012012")
-      const implications = getSongImplications(playerCount);
+      const implications = getSongImplications(playerCount, undefined, game.isPOTS);
 
       // Convert turn order indices to player IDs
       const convertIndicesToPlayerIds = (indexString: string): string[] => {
@@ -76,7 +76,7 @@ export async function POST(
       };
 
       // Generate highlighted edges for the first round to show on initial map view
-      const tokensPerRound = getTokensPerRound(playerCount);
+      const tokensPerRound = game.isPOTS ? 3 : getTokensPerRound(playerCount);
       const highlightedEdges = selectRandomVertices(mapLayout, [], tokensPerRound);
 
       await prisma.game.update({
@@ -226,6 +226,64 @@ export async function POST(
           where: { gameId },
         });
 
+        // POTS MODE: Check if we just completed round 10
+        if (game.isPOTS && game.roundNumber === 10) {
+          // After round 10 in POTS mode, enter FINAL_PLACEMENT phase
+          // Get all remaining edges (should be 6)
+          const existingTokens = await prisma.influenceToken.findMany({
+            where: { gameId },
+            select: { edgeId: true },
+          });
+
+          const remainingEdges = mapLayout.edges.filter(edge =>
+            !existingTokens.some(token => token.edgeId === edge.id)
+          );
+
+          // Calculate turn order based on money remaining
+          // Most money → second → third (ties broken by least influence tokens)
+          const players = await prisma.player.findMany({
+            where: { gameId },
+            include: {
+              influenceTokens: {
+                where: { gameId },
+              },
+            },
+          });
+
+          // Sort by money (descending), then by token count (ascending for ties)
+          const sortedPlayers = players.sort((a, b) => {
+            if (b.currencyBalance !== a.currencyBalance) {
+              return b.currencyBalance - a.currencyBalance; // Most money first
+            }
+            // Tie: least influence tokens first
+            return a.influenceTokens.length - b.influenceTokens.length;
+          });
+
+          // Create final turn order: each player places 2 tokens
+          // [player1, player1, player2, player2, player3, player3]
+          const finalTurnOrder: string[] = [];
+          sortedPlayers.forEach(player => {
+            finalTurnOrder.push(player.id, player.id);
+          });
+
+          await prisma.game.update({
+            where: { id: gameId },
+            data: {
+              status: "FINAL_PLACEMENT",
+              highlightedEdges: JSON.stringify(remainingEdges.map(e => e.id)),
+              turnOrderA: JSON.stringify(finalTurnOrder), // Store final turn order in turnOrderA
+              currentTurnIndex: 0,
+              placementTimeout: new Date(Date.now() + 60000),
+            },
+          });
+
+          return NextResponse.json({
+            success: true,
+            status: "FINAL_PLACEMENT",
+            remainingEdges: remainingEdges.length,
+          });
+        }
+
         // If map is complete, go to FINISHED
         if (placedTokens >= totalVertices) {
           await prisma.game.update({
@@ -241,7 +299,7 @@ export async function POST(
 
         // Otherwise, start next round
         const playerCount = game.players.length;
-        const implications = getSongImplications(playerCount);
+        const implications = getSongImplications(playerCount, undefined, game.isPOTS);
 
         // Convert turn order indices to player IDs
         const convertIndicesToPlayerIds = (indexString: string): string[] => {
@@ -256,7 +314,8 @@ export async function POST(
           where: { gameId },
           select: { edgeId: true },
         });
-        const tokensPerRound = getTokensPerRound(playerCount);
+        const { getTokensPerRound } = await import('@/lib/game/song-implications');
+        const tokensPerRound = game.isPOTS ? 3 : getTokensPerRound(playerCount);
         const highlightedEdges = selectRandomVertices(mapLayout, existingTokens, tokensPerRound);
 
         await prisma.game.update({

@@ -3,9 +3,10 @@
  *
  * Converts song implication patterns into actual turn orders with player assignments
  * Supports randomization of player-to-letter mappings each round
+ * Also supports POTS mode with fixed implications
  */
 
-import { SONG_IMPLICATION_PATTERNS, SongImplicationPattern } from './song-implications-data';
+import { SONG_IMPLICATION_PATTERNS, SongImplicationPattern, POTS_PATTERN } from './song-implications-data';
 
 export interface SongImplications {
   songA: string; // Turn order string with player indices (e.g., "012012")
@@ -71,12 +72,30 @@ export function applyPlayerMapping(
  *
  * @param playerCount Number of players in the game (3-6)
  * @param playerMapping Optional custom mapping from letters to player indices
+ * @param usePOTS Whether to use POTS mode (fixed implications, 3 players only)
  * @returns Song implications object with turn orders
  */
 export function getSongImplications(
   playerCount: number,
-  playerMapping?: Record<string, number>
+  playerMapping?: Record<string, number>,
+  usePOTS?: boolean
 ): SongImplications {
+  // Use POTS pattern if requested
+  if (usePOTS) {
+    if (playerCount !== 3) {
+      throw new Error('POTS mode is only available for 3-player games');
+    }
+    const pattern = POTS_PATTERN;
+    // POTS uses fixed mapping (A=0, B=1, C=2)
+    const fixedMapping = { A: 0, B: 1, C: 2 };
+    return {
+      songA: applyPlayerMapping(pattern.songA, fixedMapping),
+      songB: applyPlayerMapping(pattern.songB, fixedMapping),
+      songC: pattern.songC ? applyPlayerMapping(pattern.songC, fixedMapping) : undefined,
+      tokensPerRound: pattern.tokensPerRound,
+    };
+  }
+
   const pattern = SONG_IMPLICATION_PATTERNS[playerCount];
 
   if (!pattern) {
@@ -125,10 +144,20 @@ export function getTokensPerRound(playerCount: number): number {
 /**
  * Get total number of rounds for a player count
  */
-export function getTotalRounds(playerCount: number): number {
+export function getTotalRounds(playerCount: number, usePOTS?: boolean): number {
+  if (usePOTS) {
+    return POTS_PATTERN.totalRounds;
+  }
   const pattern = SONG_IMPLICATION_PATTERNS[playerCount];
   if (!pattern) return 0;
   return pattern.totalRounds;
+}
+
+/**
+ * Check if game should use final placement phase
+ */
+export function hasFinalPlacementPhase(usePOTS?: boolean): boolean {
+  return usePOTS === true && POTS_PATTERN.finalPlacementPhase === true;
 }
 
 /**

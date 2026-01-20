@@ -61,19 +61,29 @@ export async function POST(
       );
     }
 
-    // Verify game is in TOKEN_PLACEMENT status
-    if (game.status !== 'TOKEN_PLACEMENT') {
+    // Verify game is in TOKEN_PLACEMENT or FINAL_PLACEMENT status
+    if (game.status !== 'TOKEN_PLACEMENT' && game.status !== 'FINAL_PLACEMENT') {
       return NextResponse.json(
         { error: 'Not in token placement phase' },
         { status: 400 }
       );
     }
 
-    if (!game.mapLayout || !game.winningSong || !game.highlightedEdges) {
-      return NextResponse.json(
-        { error: 'Missing map, winning song, or highlighted edges data' },
-        { status: 500 }
-      );
+    // For FINAL_PLACEMENT, we don't need winningSong
+    if (game.status === 'TOKEN_PLACEMENT') {
+      if (!game.mapLayout || !game.winningSong || !game.highlightedEdges) {
+        return NextResponse.json(
+          { error: 'Missing map, winning song, or highlighted edges data' },
+          { status: 500 }
+        );
+      }
+    } else if (game.status === 'FINAL_PLACEMENT') {
+      if (!game.mapLayout || !game.highlightedEdges) {
+        return NextResponse.json(
+          { error: 'Missing map or highlighted edges data' },
+          { status: 500 }
+        );
+      }
     }
 
     // Deserialize map layout
@@ -81,6 +91,11 @@ export async function POST(
 
     // Get turn order from stored game data (already randomized and stored as player IDs)
     const getTurnOrder = (): string[] => {
+      // For FINAL_PLACEMENT, use turnOrderA which stores the money-based final turn order
+      if (game.status === 'FINAL_PLACEMENT' && game.turnOrderA) {
+        return JSON.parse(game.turnOrderA);
+      }
+      // For regular TOKEN_PLACEMENT, use song-based turn order
       if (game.winningSong === 'A' && game.turnOrderA) return JSON.parse(game.turnOrderA);
       if (game.winningSong === 'B' && game.turnOrderB) return JSON.parse(game.turnOrderB);
       if (game.winningSong === 'C' && game.turnOrderC) return JSON.parse(game.turnOrderC);
@@ -199,6 +214,15 @@ export async function POST(
         },
       });
 
+      // If this was FINAL_PLACEMENT, go directly to FINISHED
+      if (game.status === 'FINAL_PLACEMENT') {
+        await prisma.game.update({
+          where: { id: gameId },
+          data: { status: 'FINISHED' },
+        });
+        return NextResponse.json({ success: true, allTokensPlaced: true, gameFinished: true });
+      }
+
       // Check if map is complete (all edges filled)
       const mapLayout = deserializeMapLayout(game.mapLayout!);
       const totalEdges = mapLayout.edges.length;
@@ -271,19 +295,27 @@ export async function POST(
               },
             });
 
-            // Check if map is complete
-            const mapLayout = deserializeMapLayout(game.mapLayout!);
-            const totalEdges = mapLayout.edges.length;
-            const placedTokens = await prisma.influenceToken.count({
-              where: { gameId },
-            });
-
-            if (placedTokens >= totalEdges) {
+            // If this was FINAL_PLACEMENT, go directly to FINISHED
+            if (game.status === 'FINAL_PLACEMENT') {
               await prisma.game.update({
                 where: { id: gameId },
                 data: { status: 'FINISHED' },
               });
+              // Don't return here, let the normal response flow continue
             } else {
+              // Check if map is complete
+              const mapLayout = deserializeMapLayout(game.mapLayout!);
+              const totalEdges = mapLayout.edges.length;
+              const placedTokens = await prisma.influenceToken.count({
+                where: { gameId },
+              });
+
+              if (placedTokens >= totalEdges) {
+                await prisma.game.update({
+                  where: { id: gameId },
+                  data: { status: 'FINISHED' },
+                });
+              } else {
               const implications = await import('@/lib/game/song-implications').then(m => m.getSongImplications(game.players.length));
               const { getTokensPerRound } = await import('@/lib/game/song-implications');
               const { selectRandomVertices } = await import('@/lib/game/token-placement-logic');
@@ -303,18 +335,19 @@ export async function POST(
               const tokensPerRound = getTokensPerRound(game.players.length);
               const highlightedEdges = selectRandomVertices(mapLayout, existingTokens, tokensPerRound);
 
-              await prisma.game.update({
-                where: { id: gameId },
-                data: {
-                  status: 'ROUND1',
-                  roundNumber: game.roundNumber + 1,
-                  winningSong: null,
-                  turnOrderA: JSON.stringify(convertIndicesToPlayerIds(implications.songA)),
-                  turnOrderB: JSON.stringify(convertIndicesToPlayerIds(implications.songB)),
-                  turnOrderC: implications.songC ? JSON.stringify(convertIndicesToPlayerIds(implications.songC)) : null,
-                  highlightedEdges: JSON.stringify(highlightedEdges),
-                },
-              });
+                await prisma.game.update({
+                  where: { id: gameId },
+                  data: {
+                    status: 'ROUND1',
+                    roundNumber: game.roundNumber + 1,
+                    winningSong: null,
+                    turnOrderA: JSON.stringify(convertIndicesToPlayerIds(implications.songA)),
+                    turnOrderB: JSON.stringify(convertIndicesToPlayerIds(implications.songB)),
+                    turnOrderC: implications.songC ? JSON.stringify(convertIndicesToPlayerIds(implications.songC)) : null,
+                    highlightedEdges: JSON.stringify(highlightedEdges),
+                  },
+                });
+              }
             }
           }
         } catch (err) {

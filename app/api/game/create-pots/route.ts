@@ -9,26 +9,25 @@ const PLAYER_COLORS = [
   '#FF6B6B', // Red
   '#4ECDC4', // Teal
   '#FFD93D', // Yellow
-  '#6C5CE7', // Purple
-  '#00D2FF', // Cyan
-  '#FF8C42', // Orange
 ];
 
+/**
+ * Create a new POTS mode game
+ * POTS mode features:
+ * - 3 players only
+ * - Fixed song implications: ABB, BCC, CAA
+ * - 3 tokens per round
+ * - 10 rounds total
+ * - Final placement phase for remaining 6 tokens (based on money)
+ */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { playerName, playerCount = 3 } = body;
+    const { playerName } = body;
 
     if (!playerName || typeof playerName !== "string" || playerName.trim().length === 0) {
       return NextResponse.json(
         { error: "Player name is required" },
-        { status: 400 }
-      );
-    }
-
-    if (typeof playerCount !== "number" || playerCount < 3 || playerCount > 6) {
-      return NextResponse.json(
-        { error: "Player count must be between 3 and 6" },
         { status: 400 }
       );
     }
@@ -43,27 +42,28 @@ export async function POST(request: NextRequest) {
       existingGame = await prisma.game.findUnique({ where: { roomCode } });
     }
 
-    // For AI games, generate map based on selected player count
+    // POTS mode is always 3 players
+    const playerCount = 3;
     const mapLayout = generateMapLayout(playerCount);
-    const totalRounds = getTotalRounds(playerCount);
+    const totalRounds = getTotalRounds(playerCount, true); // usePOTS = true
 
-    // Generate turn orders for the first round (these are index strings like "012012")
-    const implications = getSongImplications(playerCount);
+    // Generate turn orders for POTS mode (fixed implications, no randomization)
+    const implications = getSongImplications(playerCount, undefined, true); // usePOTS = true
 
-    // Generate initial highlighted edges (6 for 3 players)
-    const tokensPerRound = playerCount <= 4 ? 6 : 8;
+    // Generate initial highlighted edges (3 for POTS mode)
+    const tokensPerRound = 3;
     const highlightedEdges = selectRandomVertices(mapLayout, [], tokensPerRound);
 
     const game = await prisma.game.create({
       data: {
         roomCode,
-        status: "ROUND1", // Start game immediately in Promise Phase for AI mode
+        status: "ROUND1", // Start game immediately in Promise Phase
         roundNumber: 1,
         mapType: mapLayout.mapType,
         mapLayout: serializeMapLayout(mapLayout),
         totalRounds,
-        highlightedEdges: JSON.stringify(highlightedEdges), // Store for later use
-        // Turn orders will be set after players are created
+        isPOTS: true, // Enable POTS mode
+        highlightedEdges: JSON.stringify(highlightedEdges),
       },
     });
 
@@ -76,28 +76,28 @@ export async function POST(request: NextRequest) {
         sessionToken,
         currencyBalance: 30,
         isAI: false,
-        playerColor: PLAYER_COLORS[0], // First player gets first color
+        playerColor: PLAYER_COLORS[0],
       },
     });
 
-    // Create AI players (playerCount - 1 bots)
-    const aiCount = playerCount - 1;
+    // Create 2 AI players with different colors
+    const aiNames = ["AI Bot 1", "AI Bot 2"];
     const aiPlayers = [];
-    for (let i = 0; i < aiCount; i++) {
+    for (let i = 0; i < aiNames.length; i++) {
       const aiPlayer = await prisma.player.create({
         data: {
           gameId: game.id,
-          name: `AI Bot ${i + 1}`,
-          sessionToken: generateSessionToken(), // AI still needs a token but won't use it
+          name: aiNames[i],
+          sessionToken: generateSessionToken(),
           currencyBalance: 30,
           isAI: true,
-          playerColor: PLAYER_COLORS[i + 1], // AI players get subsequent colors
+          playerColor: PLAYER_COLORS[i + 1],
         },
       });
       aiPlayers.push(aiPlayer);
     }
 
-    // Now convert turn order indices to player IDs
+    // Convert turn order indices to player IDs
     const allPlayers = [humanPlayer, ...aiPlayers];
     const convertIndicesToPlayerIds = (indexString: string): string[] => {
       return indexString.split('').map(indexChar => {
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
       });
     };
 
-    // Update game with actual player IDs in turn orders (stored as JSON strings)
+    // Update game with actual player IDs in turn orders
     await prisma.game.update({
       where: { id: game.id },
       data: {
@@ -129,11 +129,11 @@ export async function POST(request: NextRequest) {
       playerId: humanPlayer.id,
     });
   } catch (error) {
-    console.error("Create AI game error:", error);
+    console.error("Create POTS game error:", error);
     console.error("Error details:", error instanceof Error ? error.message : String(error));
     console.error("Error stack:", error instanceof Error ? error.stack : "No stack trace");
     return NextResponse.json(
-      { error: "Failed to create AI game", details: error instanceof Error ? error.message : String(error) },
+      { error: "Failed to create POTS game", details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }

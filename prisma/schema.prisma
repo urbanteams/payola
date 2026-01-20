@@ -13,12 +13,13 @@ datasource db {
 model Game {
   id               String            @id @default(cuid())
   roomCode         String            @unique
-  status           String            // LOBBY, ROUND1, ROUND2, RESULTS, TOKEN_PLACEMENT, FINAL_RESULTS, FINISHED
+  status           String            // LOBBY, ROUND1, ROUND2, RESULTS, TOKEN_PLACEMENT, FINAL_PLACEMENT, FINAL_RESULTS, FINISHED
   roundNumber      Int               @default(1) // Track multiple game rounds
   winningSong      String?           // A, B, or C - winner for current round (set when entering RESULTS)
   mapType          String?           // "NY" or "CA" - map selection for this game
   mapLayout        String?           // JSON serialized hex positions and types
   totalRounds      Int?              // Calculated based on player count + vertex count
+  isPOTS           Boolean           @default(false) // POTS mode: fixed implications, 10 rounds, final placement
   turnOrderA       String?           // Turn order for Song A (e.g., "012012") - player indices
   turnOrderB       String?           // Turn order for Song B (e.g., "210021") - player indices
   turnOrderC       String?           // Turn order for Song C (5-6 players only)

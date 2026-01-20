@@ -16,6 +16,8 @@ export interface SongImplicationPattern {
   songC?: string;
   tokensPerRound: number;
   totalRounds: number;
+  isPOTS?: boolean; // POTS mode: fixed implications, no randomization
+  finalPlacementPhase?: boolean; // Whether to have a special final placement phase
 }
 
 /**
@@ -23,7 +25,7 @@ export interface SongImplicationPattern {
  */
 export const SONG_IMPLICATION_PATTERNS: Record<number, SongImplicationPattern> = {
   /**
-   * 3-PLAYER GAME
+   * 3-PLAYER GAME (STANDARD)
    * - Song A = ABABAC (6 tokens per round)
    * - Song B = BCCCBA (6 tokens per round)
    * - No Song C
@@ -80,6 +82,27 @@ export const SONG_IMPLICATION_PATTERNS: Record<number, SongImplicationPattern> =
     tokensPerRound: 8,
     totalRounds: 6,
   },
+};
+
+/**
+ * POTS Mode - 3 Player Game with Fixed Implications
+ *
+ * Key differences from standard 3-player:
+ * - Fixed song implications (no randomization)
+ * - Song A = ABB, Song B = BCC, Song C = CAA
+ * - 3 tokens per round (instead of 6)
+ * - 10 rounds total (30 tokens)
+ * - Final placement phase for remaining 6 tokens (based on money)
+ * - Total: 36 tokens on NYC36 map
+ */
+export const POTS_PATTERN: SongImplicationPattern = {
+  songA: 'ABB',
+  songB: 'BCC',
+  songC: 'CAA',
+  tokensPerRound: 3,
+  totalRounds: 10,
+  isPOTS: true,
+  finalPlacementPhase: true,
 };
 
 /**
