@@ -5,6 +5,8 @@
  */
 
 import { prisma } from '@/lib/prisma';
+import { deserializeMapLayout } from '@/lib/game/map-generator';
+import { calculateImmediateReward } from '@/lib/game/token-placement-logic';
 
 const TOKEN_TYPES = ['4/0', '3/1', '2/2'] as const;
 const ORIENTATIONS = ['A', 'B'] as const;
@@ -23,8 +25,8 @@ export async function processAITokenPlacement(gameId: string): Promise<boolean> 
       },
     });
 
-    if (!game || game.status !== 'TOKEN_PLACEMENT') {
-      console.log('Game not in token placement phase');
+    if (!game || (game.status !== 'TOKEN_PLACEMENT' && game.status !== 'FINAL_PLACEMENT')) {
+      console.log('Game not in token placement phase, status:', game?.status);
       return false;
     }
 
@@ -33,11 +35,17 @@ export async function processAITokenPlacement(gameId: string): Promise<boolean> 
       return false;
     }
 
-    // Get turn order based on winning song
+    // Get turn order based on status and winning song
     const getTurnOrder = (): string[] => {
+      // For FINAL_PLACEMENT, use turnOrderA which stores the money-based turn order
+      if (game.status === 'FINAL_PLACEMENT' && game.turnOrderA) {
+        return JSON.parse(game.turnOrderA);
+      }
+      // For regular TOKEN_PLACEMENT, use song-based turn order
       if (game.winningSong === 'A' && game.turnOrderA) return JSON.parse(game.turnOrderA);
       if (game.winningSong === 'B' && game.turnOrderB) return JSON.parse(game.turnOrderB);
       if (game.winningSong === 'C' && game.turnOrderC) return JSON.parse(game.turnOrderC);
+      if (game.winningSong === 'D' && game.turnOrderD) return JSON.parse(game.turnOrderD);
       return [];
     };
 
@@ -52,6 +60,8 @@ export async function processAITokenPlacement(gameId: string): Promise<boolean> 
     const currentTurnPlayerId = turnOrder[currentTurnIndex];
     const currentPlayer = game.players.find(p => p.id === currentTurnPlayerId);
 
+    console.log(`AI Placement Check - Status: ${game.status}, Turn ${currentTurnIndex + 1}/${turnOrder.length}, Player: ${currentPlayer?.name}, isAI: ${currentPlayer?.isAI}`);
+
     // Check if current player is AI
     if (!currentPlayer || !currentPlayer.isAI) {
       console.log('Current player is not AI:', currentPlayer?.name);
@@ -59,11 +69,12 @@ export async function processAITokenPlacement(gameId: string): Promise<boolean> 
     }
 
     // Get existing tokens to avoid duplicates
+    // For FINAL_PLACEMENT, check all tokens across all rounds
+    // For regular rounds, only check tokens from current round
     const existingTokens = await prisma.influenceToken.findMany({
-      where: {
-        gameId,
-        roundNumber: game.roundNumber,
-      },
+      where: game.status === 'FINAL_PLACEMENT'
+        ? { gameId }
+        : { gameId, roundNumber: game.roundNumber },
       select: { edgeId: true },
     });
 
@@ -94,6 +105,39 @@ export async function processAITokenPlacement(gameId: string): Promise<boolean> 
     });
 
     console.log(`AI ${currentPlayer.name} placed token ${randomTokenType} (${randomOrientation}) on edge ${randomEdge}`);
+
+    // Calculate and apply immediate rewards (money hub bonuses)
+    if (game.mapLayout) {
+      const mapLayout = deserializeMapLayout(game.mapLayout);
+      const immediateReward = calculateImmediateReward(
+        randomEdge,
+        randomTokenType,
+        randomOrientation,
+        mapLayout
+      );
+
+      if (immediateReward) {
+        if (immediateReward.victoryPoints !== undefined) {
+          await prisma.player.update({
+            where: { id: currentPlayer.id },
+            data: {
+              victoryPoints: currentPlayer.victoryPoints + immediateReward.victoryPoints,
+            },
+          });
+        }
+
+        if (immediateReward.currency !== undefined) {
+          await prisma.player.update({
+            where: { id: currentPlayer.id },
+            data: {
+              currencyBalance: currentPlayer.currencyBalance + immediateReward.currency,
+            },
+          });
+        }
+
+        console.log(`AI ${currentPlayer.name} received immediate reward:`, immediateReward);
+      }
+    }
 
     // Advance turn
     const nextTurnIndex = currentTurnIndex + 1;
@@ -154,9 +198,15 @@ export async function processAllAITokenPlacements(gameId: string): Promise<boole
   if (!game) return false;
 
   const getTurnOrder = (): string[] => {
+    // For FINAL_PLACEMENT, use turnOrderA which stores the money-based turn order
+    if (game.status === 'FINAL_PLACEMENT' && game.turnOrderA) {
+      return JSON.parse(game.turnOrderA);
+    }
+    // For regular TOKEN_PLACEMENT, use song-based turn order
     if (game.winningSong === 'A' && game.turnOrderA) return JSON.parse(game.turnOrderA);
     if (game.winningSong === 'B' && game.turnOrderB) return JSON.parse(game.turnOrderB);
     if (game.winningSong === 'C' && game.turnOrderC) return JSON.parse(game.turnOrderC);
+    if (game.winningSong === 'D' && game.turnOrderD) return JSON.parse(game.turnOrderD);
     return [];
   };
 

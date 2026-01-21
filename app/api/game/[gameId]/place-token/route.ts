@@ -87,6 +87,9 @@ export async function POST(
     }
 
     // Deserialize map layout
+    if (!game.mapLayout) {
+      return NextResponse.json({ error: "Map layout not found" }, { status: 400 });
+    }
     const mapLayout = deserializeMapLayout(game.mapLayout);
 
     // Get turn order from stored game data (already randomized and stored as player IDs)
@@ -99,6 +102,7 @@ export async function POST(
       if (game.winningSong === 'A' && game.turnOrderA) return JSON.parse(game.turnOrderA);
       if (game.winningSong === 'B' && game.turnOrderB) return JSON.parse(game.turnOrderB);
       if (game.winningSong === 'C' && game.turnOrderC) return JSON.parse(game.turnOrderC);
+      if (game.winningSong === 'D' && game.turnOrderD) return JSON.parse(game.turnOrderD);
       return [];
     };
 
@@ -127,6 +131,9 @@ export async function POST(
     const currentTurn = turnOrder[currentTurnIndex];
 
     // Get highlighted edges from database
+    if (!game.highlightedEdges) {
+      return NextResponse.json({ error: "Highlighted edges not found" }, { status: 400 });
+    }
     const highlightedEdges = JSON.parse(game.highlightedEdges);
 
     // Validate placement
@@ -236,10 +243,108 @@ export async function POST(
           where: { id: gameId },
           data: { status: 'FINISHED' },
         });
+      } else if (game.isPOTS && game.roundNumber === game.totalRounds) {
+        // POTS MODE: After final round, enter FINAL_PLACEMENT phase
+        const existingTokens = await prisma.influenceToken.findMany({
+          where: { gameId },
+          select: { edgeId: true },
+        });
+
+        const remainingEdges = mapLayout.edges.filter(edgeId =>
+          !existingTokens.some(token => token.edgeId === edgeId)
+        );
+
+        console.log(`FINAL_PLACEMENT (from place-token): ${remainingEdges.length} remaining edges out of ${mapLayout.edges.length} total`);
+
+        // Calculate turn order based on money remaining
+        const playersWithTokens = await prisma.player.findMany({
+          where: { gameId },
+          include: {
+            influenceTokens: {
+              where: { gameId },
+            },
+          },
+        });
+
+        // Sort by money (descending), then by token count (ascending for ties)
+        const sortedPlayers = playersWithTokens.sort((a, b) => {
+          if (b.currencyBalance !== a.currencyBalance) {
+            return b.currencyBalance - a.currencyBalance;
+          }
+          return a.influenceTokens.length - b.influenceTokens.length;
+        });
+
+        // Create final turn order based on player count
+        const finalTurnOrder: string[] = [];
+
+        if (playersWithTokens.length === 6) {
+          // 6-player: Top 2 place 2 tokens, bottom 4 place 1 token
+          // Order: 1st, 2nd, 3rd, 4th, 5th, 6th, 1st, 2nd
+          finalTurnOrder.push(sortedPlayers[0].id); // 1st place, 1st token
+          finalTurnOrder.push(sortedPlayers[1].id); // 2nd place, 1st token
+          finalTurnOrder.push(sortedPlayers[2].id); // 3rd place, only token
+          finalTurnOrder.push(sortedPlayers[3].id); // 4th place, only token
+          finalTurnOrder.push(sortedPlayers[4].id); // 5th place, only token
+          finalTurnOrder.push(sortedPlayers[5].id); // 6th place (least), only token
+          finalTurnOrder.push(sortedPlayers[0].id); // 1st place, 2nd token
+          finalTurnOrder.push(sortedPlayers[1].id); // 2nd place, 2nd token
+        } else if (playersWithTokens.length === 5) {
+          // 5-player: Top 3 place 2 tokens, bottom 2 place 1 token
+          // Order: 1st, 2nd, 3rd, 4th, 5th, 1st, 2nd, 3rd
+          finalTurnOrder.push(sortedPlayers[0].id); // 1st place, 1st token
+          finalTurnOrder.push(sortedPlayers[1].id); // 2nd place, 1st token
+          finalTurnOrder.push(sortedPlayers[2].id); // 3rd place, 1st token
+          finalTurnOrder.push(sortedPlayers[3].id); // 4th place, only token
+          finalTurnOrder.push(sortedPlayers[4].id); // 5th place, only token
+          finalTurnOrder.push(sortedPlayers[0].id); // 1st place, 2nd token
+          finalTurnOrder.push(sortedPlayers[1].id); // 2nd place, 2nd token
+          finalTurnOrder.push(sortedPlayers[2].id); // 3rd place, 2nd token
+        } else if (playersWithTokens.length === 4) {
+          // 4-player: Each player places 1 token
+          sortedPlayers.forEach(player => finalTurnOrder.push(player.id));
+        } else {
+          // 3-player or other: Each player places equal number of tokens
+          const tokensPerPlayer = Math.floor(remainingEdges.length / playersWithTokens.length);
+          sortedPlayers.forEach(player => {
+            for (let i = 0; i < tokensPerPlayer; i++) {
+              finalTurnOrder.push(player.id);
+            }
+          });
+        }
+
+        await prisma.game.update({
+          where: { id: gameId },
+          data: {
+            status: 'FINAL_PLACEMENT',
+            highlightedEdges: JSON.stringify(remainingEdges),
+            turnOrderA: JSON.stringify(finalTurnOrder),
+            currentTurnIndex: 0,
+            placementTimeout: new Date(Date.now() + 60000),
+          },
+        });
+
+        // Process AI token placements immediately for FINAL_PLACEMENT
+        try {
+          const allTokensPlacedInFinal = await processAllAITokenPlacements(gameId);
+          console.log('AI token placements processed for FINAL_PLACEMENT, all placed:', allTokensPlacedInFinal);
+
+          if (allTokensPlacedInFinal) {
+            await prisma.game.update({
+              where: { id: gameId },
+              data: {
+                status: 'FINISHED',
+                highlightedEdges: null,
+                currentTurnIndex: null,
+                placementTimeout: null,
+              },
+            });
+          }
+        } catch (err) {
+          console.error('Failed to process AI token placements for FINAL_PLACEMENT:', err);
+        }
       } else {
         // Start next round
-        const implications = await import('@/lib/game/song-implications').then(m => m.getSongImplications(game.players.length));
-        const { getTokensPerRound } = await import('@/lib/game/song-implications');
+        const implications = await import('@/lib/game/song-implications').then(m => m.getSongImplications(game.players.length, undefined, game.isPOTS));
         const { selectRandomVertices } = await import('@/lib/game/token-placement-logic');
 
         const convertIndicesToPlayerIds = (indexString: string): string[] => {
@@ -254,7 +359,8 @@ export async function POST(
           where: { gameId },
           select: { edgeId: true },
         });
-        const tokensPerRound = getTokensPerRound(game.players.length);
+        // Use tokensPerRound from implications (correct for all player counts)
+        const tokensPerRound = implications.tokensPerRound;
         const highlightedEdges = selectRandomVertices(mapLayout, existingTokens, tokensPerRound);
 
         await prisma.game.update({
@@ -266,6 +372,7 @@ export async function POST(
             turnOrderA: JSON.stringify(convertIndicesToPlayerIds(implications.songA)),
             turnOrderB: JSON.stringify(convertIndicesToPlayerIds(implications.songB)),
             turnOrderC: implications.songC ? JSON.stringify(convertIndicesToPlayerIds(implications.songC)) : null,
+            turnOrderD: implications.songD ? JSON.stringify(convertIndicesToPlayerIds(implications.songD)) : null,
             highlightedEdges: JSON.stringify(highlightedEdges),
           },
         });
@@ -274,6 +381,8 @@ export async function POST(
       // Process AI token placements if next player is AI
       const nextPlayerTurn = turnOrder[nextTurnIndex];
       const nextPlayer = game.players.find(p => p.id === nextPlayerTurn.playerId);
+
+      console.log(`After human placement - Next player: ${nextPlayer?.name}, isAI: ${nextPlayer?.isAI}, Status: ${game.status}`);
 
       if (nextPlayer?.isAI) {
         try {
@@ -315,9 +424,107 @@ export async function POST(
                   where: { id: gameId },
                   data: { status: 'FINISHED' },
                 });
+              } else if (game.isPOTS && game.roundNumber === game.totalRounds) {
+                // POTS MODE: After final round, enter FINAL_PLACEMENT phase
+                const existingTokens = await prisma.influenceToken.findMany({
+                  where: { gameId },
+                  select: { edgeId: true },
+                });
+
+                const remainingEdges = mapLayout.edges.filter(edgeId =>
+                  !existingTokens.some(token => token.edgeId === edgeId)
+                );
+
+                console.log(`FINAL_PLACEMENT (from place-token AI completion): ${remainingEdges.length} remaining edges out of ${mapLayout.edges.length} total`);
+
+                // Calculate turn order based on money remaining
+                const playersWithTokens = await prisma.player.findMany({
+                  where: { gameId },
+                  include: {
+                    influenceTokens: {
+                      where: { gameId },
+                    },
+                  },
+                });
+
+                // Sort by money (descending), then by token count (ascending for ties)
+                const sortedPlayers = playersWithTokens.sort((a, b) => {
+                  if (b.currencyBalance !== a.currencyBalance) {
+                    return b.currencyBalance - a.currencyBalance;
+                  }
+                  return a.influenceTokens.length - b.influenceTokens.length;
+                });
+
+                // Create final turn order based on player count
+                const finalTurnOrder: string[] = [];
+
+                if (playersWithTokens.length === 6) {
+                  // 6-player: Top 2 place 2 tokens, bottom 4 place 1 token
+                  // Order: 1st, 2nd, 3rd, 4th, 5th, 6th, 1st, 2nd
+                  finalTurnOrder.push(sortedPlayers[0].id); // 1st place, 1st token
+                  finalTurnOrder.push(sortedPlayers[1].id); // 2nd place, 1st token
+                  finalTurnOrder.push(sortedPlayers[2].id); // 3rd place, only token
+                  finalTurnOrder.push(sortedPlayers[3].id); // 4th place, only token
+                  finalTurnOrder.push(sortedPlayers[4].id); // 5th place, only token
+                  finalTurnOrder.push(sortedPlayers[5].id); // 6th place (least), only token
+                  finalTurnOrder.push(sortedPlayers[0].id); // 1st place, 2nd token
+                  finalTurnOrder.push(sortedPlayers[1].id); // 2nd place, 2nd token
+                } else if (playersWithTokens.length === 5) {
+                  // 5-player: Top 3 place 2 tokens, bottom 2 place 1 token
+                  // Order: 1st, 2nd, 3rd, 4th, 5th, 1st, 2nd, 3rd
+                  finalTurnOrder.push(sortedPlayers[0].id); // 1st place, 1st token
+                  finalTurnOrder.push(sortedPlayers[1].id); // 2nd place, 1st token
+                  finalTurnOrder.push(sortedPlayers[2].id); // 3rd place, 1st token
+                  finalTurnOrder.push(sortedPlayers[3].id); // 4th place, only token
+                  finalTurnOrder.push(sortedPlayers[4].id); // 5th place, only token
+                  finalTurnOrder.push(sortedPlayers[0].id); // 1st place, 2nd token
+                  finalTurnOrder.push(sortedPlayers[1].id); // 2nd place, 2nd token
+                  finalTurnOrder.push(sortedPlayers[2].id); // 3rd place, 2nd token
+                } else if (playersWithTokens.length === 4) {
+                  // 4-player: Each player places 1 token
+                  sortedPlayers.forEach(player => finalTurnOrder.push(player.id));
+                } else {
+                  // 3-player or other: Each player places equal number of tokens
+                  const tokensPerPlayer = Math.floor(remainingEdges.length / playersWithTokens.length);
+                  sortedPlayers.forEach(player => {
+                    for (let i = 0; i < tokensPerPlayer; i++) {
+                      finalTurnOrder.push(player.id);
+                    }
+                  });
+                }
+
+                await prisma.game.update({
+                  where: { id: gameId },
+                  data: {
+                    status: 'FINAL_PLACEMENT',
+                    highlightedEdges: JSON.stringify(remainingEdges),
+                    turnOrderA: JSON.stringify(finalTurnOrder),
+                    currentTurnIndex: 0,
+                    placementTimeout: new Date(Date.now() + 60000),
+                  },
+                });
+
+                // Process AI token placements immediately for FINAL_PLACEMENT
+                try {
+                  const allTokensPlacedInFinal = await processAllAITokenPlacements(gameId);
+                  console.log('AI token placements processed for FINAL_PLACEMENT (from AI completion), all placed:', allTokensPlacedInFinal);
+
+                  if (allTokensPlacedInFinal) {
+                    await prisma.game.update({
+                      where: { id: gameId },
+                      data: {
+                        status: 'FINISHED',
+                        highlightedEdges: null,
+                        currentTurnIndex: null,
+                        placementTimeout: null,
+                      },
+                    });
+                  }
+                } catch (err) {
+                  console.error('Failed to process AI token placements for FINAL_PLACEMENT (from AI completion):', err);
+                }
               } else {
-              const implications = await import('@/lib/game/song-implications').then(m => m.getSongImplications(game.players.length));
-              const { getTokensPerRound } = await import('@/lib/game/song-implications');
+              const implications = await import('@/lib/game/song-implications').then(m => m.getSongImplications(game.players.length, undefined, game.isPOTS));
               const { selectRandomVertices } = await import('@/lib/game/token-placement-logic');
 
               const convertIndicesToPlayerIds = (indexString: string): string[] => {
@@ -332,7 +539,8 @@ export async function POST(
                 where: { gameId },
                 select: { edgeId: true },
               });
-              const tokensPerRound = getTokensPerRound(game.players.length);
+              // Use tokensPerRound from implications (correct for all player counts)
+              const tokensPerRound = implications.tokensPerRound;
               const highlightedEdges = selectRandomVertices(mapLayout, existingTokens, tokensPerRound);
 
                 await prisma.game.update({
@@ -344,6 +552,7 @@ export async function POST(
                     turnOrderA: JSON.stringify(convertIndicesToPlayerIds(implications.songA)),
                     turnOrderB: JSON.stringify(convertIndicesToPlayerIds(implications.songB)),
                     turnOrderC: implications.songC ? JSON.stringify(convertIndicesToPlayerIds(implications.songC)) : null,
+                    turnOrderD: implications.songD ? JSON.stringify(convertIndicesToPlayerIds(implications.songD)) : null,
                     highlightedEdges: JSON.stringify(highlightedEdges),
                   },
                 });

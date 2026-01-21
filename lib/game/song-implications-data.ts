@@ -14,9 +14,10 @@ export interface SongImplicationPattern {
   songA: string;
   songB: string;
   songC?: string;
+  songD?: string;
   tokensPerRound: number;
   totalRounds: number;
-  isPOTS?: boolean; // POTS mode: fixed implications, no randomization
+  isPOTS?: boolean; // POTS mode: fixed patterns (ABB, BCC, CAA), but player assignments randomize each round
   finalPlacementPhase?: boolean; // Whether to have a special final placement phase
 }
 
@@ -41,13 +42,17 @@ export const SONG_IMPLICATION_PATTERNS: Record<number, SongImplicationPattern> =
   /**
    * 4-PLAYER GAME
    * - Song A = ABCDBA (6 tokens per round)
-   * - Song B = DCBACD (6 tokens per round)
+   * - Song B = CADBAC (6 tokens per round)
+   * - Song C = BDACDB (6 tokens per round)
+   * - Song D = DCBACD (6 tokens per round)
    * - 6 rounds total (6 rounds × 6 tokens = 36 tokens total)
    * - Players: A, B, C, D
    */
   4: {
     songA: 'ABCDBA',
-    songB: 'DCBACD',
+    songB: 'CADBAC',
+    songC: 'BDACDB',
+    songD: 'DCBACD',
     tokensPerRound: 6,
     totalRounds: 6,
   },
@@ -85,14 +90,14 @@ export const SONG_IMPLICATION_PATTERNS: Record<number, SongImplicationPattern> =
 };
 
 /**
- * POTS Mode - 3 Player Game with Fixed Implications
+ * POTS Mode - 3 Player Game
  *
  * Key differences from standard 3-player:
- * - Fixed song implications (no randomization)
- * - Song A = ABB, Song B = BCC, Song C = CAA
+ * - Fixed song patterns: Song A = ABB, Song B = BCC, Song C = CAA
+ * - Player assignments randomize each round
  * - 3 tokens per round (instead of 6)
  * - 10 rounds total (30 tokens)
- * - Final placement phase for remaining 6 tokens (based on money)
+ * - Final placement phase for remaining 6 tokens (2 per player, based on money)
  * - Total: 36 tokens on NYC36 map
  */
 export const POTS_PATTERN: SongImplicationPattern = {
@@ -100,6 +105,70 @@ export const POTS_PATTERN: SongImplicationPattern = {
   songB: 'BCC',
   songC: 'CAA',
   tokensPerRound: 3,
+  totalRounds: 10,
+  isPOTS: true,
+  finalPlacementPhase: true,
+};
+
+/**
+ * POTS Mode - 4 Player Game
+ *
+ * Key differences from standard 4-player:
+ * - Fixed song patterns: Song A = ABCB, Song B = BCDC, Song C = CDAD, Song D = DABA
+ * - Player assignments randomize each round (same as 3-player POTS)
+ * - 4 tokens per round (instead of 6)
+ * - 8 rounds total (32 tokens)
+ * - Final placement phase for remaining 4 tokens (1 per player, based on money)
+ * - Total: 36 tokens on NYC36 map
+ */
+export const POTS_PATTERN_4PLAYER: SongImplicationPattern = {
+  songA: 'ABCB',
+  songB: 'BCDC',
+  songC: 'CDAD',
+  songD: 'DABA',
+  tokensPerRound: 4,
+  totalRounds: 8,
+  isPOTS: true,
+  finalPlacementPhase: true,
+};
+
+/**
+ * POTS Mode - 5 Player Game
+ *
+ * Key differences from standard 5-player:
+ * - Fixed song patterns: Song A = ABCBA, Song B = CDEDC, Song C = EBDAE
+ * - Player assignments randomize each round (same as 3/4-player POTS)
+ * - 5 tokens per round (instead of 8)
+ * - 8 rounds total (40 tokens)
+ * - Final placement phase for remaining 8 tokens (top 3 place 2, bottom 2 place 1, based on money)
+ * - Total: 48 tokens on NYC48 map
+ */
+export const POTS_PATTERN_5PLAYER: SongImplicationPattern = {
+  songA: 'ABCBA',
+  songB: 'CDEDC',
+  songC: 'EBDAE',
+  tokensPerRound: 5,
+  totalRounds: 8,
+  isPOTS: true,
+  finalPlacementPhase: true,
+};
+
+/**
+ * POTS Mode - 6 Player Game
+ *
+ * Key differences from standard 6-player:
+ * - Fixed song patterns: Song A = ABCD, Song B = DCEF, Song C = FEBA
+ * - Player assignments randomize each round (same as 3/4/5-player POTS)
+ * - 4 tokens per round (instead of 8)
+ * - 10 rounds total (40 tokens)
+ * - Final placement phase for remaining 8 tokens (top 2 place 2, bottom 4 place 1, based on money)
+ * - Total: 48 tokens on NYC48 map
+ */
+export const POTS_PATTERN_6PLAYER: SongImplicationPattern = {
+  songA: 'ABCD',
+  songB: 'DCEF',
+  songC: 'FEBA',
+  tokensPerRound: 4,
   totalRounds: 10,
   isPOTS: true,
   finalPlacementPhase: true,

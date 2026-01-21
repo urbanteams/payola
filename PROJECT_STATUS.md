@@ -1,12 +1,165 @@
 # Payola Hexagonal Map Feature - Project Status
 
-**Last Updated:** January 19, 2026 (Session 6 - Final Polish & Bug Fixes)
-**Branch:** `main`
-**Status:** Production Ready (100% complete)
+**Last Updated:** January 21, 2026 (Session 8 - VS AI Mode Unified with POTS Patterns)
+**Branch:** `POTS`
+**Status:** VS AI Mode Complete (Uses POTS patterns for all player counts)
 
 ---
 
-## 📝 Session 6 Progress Summary (Most Recent)
+## 📝 Session 8 Progress Summary (Most Recent)
+
+**Work Completed in This Session:**
+
+### VS AI Mode Unified with POTS Patterns ✅
+
+**Overview**:
+All VS AI games now use POTS patterns for all player counts (3, 4, 5, 6). The separate "POTS Mode (Experimental)" has been removed from the UI. This simplifies the user experience while preserving all POTS mechanics.
+
+**Changes Made**:
+
+1. **Modified `app/api/game/create-ai/route.ts`** (December 2025)
+   - Changed `getTotalRounds(playerCount)` to `getTotalRounds(playerCount, true)` (usePOTS = true)
+   - Changed `getSongImplications(playerCount)` to `getSongImplications(playerCount, undefined, true)` (usePOTS = true)
+   - Added `isPOTS: true` flag to all game creation
+   - Made `tokensPerRound` dynamic using `implications.tokensPerRound`
+   - Result: All VS AI games now behave identically to POTS mode
+
+2. **Verified AI Game Independence**
+   - Confirmed AI games use `isPOTS` flag stored in database
+   - All POTS logic is in shared functions (`getSongImplications`, `getTotalRounds`)
+   - No dependencies on create-pots route
+   - Safe to remove POTS mode UI without breaking AI functionality
+
+3. **Removed POTS Mode from UI** (`app/page.tsx`)
+   - Removed "pots" from mode state type
+   - Removed `potsPlayerCount` state variable
+   - Removed `handleCreatePOTSGame()` function (35 lines)
+   - Removed "POTS Mode (Experimental)" button from main menu
+   - Removed entire POTS mode UI section (87 lines)
+
+4. **Deleted `app/api/game/create-pots/route.ts`**
+   - Route no longer needed since VS AI Mode handles everything
+   - All POTS mechanics preserved in shared game logic
+
+5. **Updated Documentation**
+   - Updated `PROJECT_CONTEXT.md` with unification note
+   - Updated `PROJECT_STATUS.md` with Session 8 summary
+   - Noted that VS AI Mode uses POTS patterns for all player counts
+
+**Testing Status**: Pending user verification before commit
+
+**Result**:
+- Simpler UI: One "VS AI Mode" button instead of separate POTS mode
+- Same mechanics: All POTS patterns and features preserved
+- Better UX: Users don't need to understand "POTS" terminology
+- Cleaner codebase: Removed duplicate route, simplified menu
+
+---
+
+## 📝 Session 7 Progress Summary
+
+**Work Completed in This Session:**
+
+### 5-Player POTS Mode Implementation ✅
+**Implemented by**: Agent focusing on 5-player mode
+
+**Configuration**:
+- **Players**: 5 (1 human + 4 AI: Bailey, Karthik, Morgan, Casey)
+- **Map**: NYC48 (48 token spaces)
+- **Songs**: 3 (A, B, C only - Song D does not appear)
+- **Song Patterns**: ABCBA, CDEDC, EBDAE (variables randomize each round)
+- **Normal Rounds**: 8 rounds × 5 tokens = 40 tokens
+- **Final Round**: 1 special round × 8 tokens = 8 tokens
+- **Total**: 48 tokens (perfect fit!)
+
+**Final Round Mechanics**:
+- **Turn Order**: 1st → 2nd → 3rd → 4th → 5th → 1st → 2nd → 3rd
+- **Token Distribution**:
+  - Top 3 players (most money): Place 2 tokens each (positions 1,6 / 2,7 / 3,8)
+  - Bottom 2 players (least money): Place 1 token each (positions 4 / 5)
+- **Unique Feature**: Asymmetric placement rewards money management
+
+**Files Modified**:
+1. `lib/game/song-implications-data.ts` - Added POTS_PATTERN_5PLAYER
+2. `lib/game/song-implications.ts` - Added 5-player logic
+3. `app/api/game/create-pots/route.ts` - Support for playerCount=5
+4. `app/api/game/[gameId]/advance/route.ts` - 5-player final placement (2 locations)
+5. `app/api/game/[gameId]/place-token/route.ts` - 5-player final placement (2 locations)
+6. `app/page.tsx` - Updated to 4-column grid (3, 4, 5, 6) with 5-player info
+
+### 6-Player POTS Mode Implementation ✅
+**Implemented by**: Parallel agent focusing on 6-player mode
+
+**Configuration**:
+- **Players**: 6 (1 human + 5 AI: Bailey, Karthik, Morgan, Casey, Quinn)
+- **Map**: NYC48 (48 token spaces)
+- **Songs**: 3 (A, B, C with 6-variable patterns)
+- **Song Patterns**: ABCD, DCEF, FEBA (variables A-F randomize each round)
+- **Normal Rounds**: 10 rounds × 4 tokens = 40 tokens
+- **Final Round**: 1 special round × 8 tokens = 8 tokens
+- **Total**: 48 tokens (perfect fit!)
+
+**Final Round Mechanics**:
+- **Turn Order**: 1st → 2nd → 3rd → 4th → 5th → 6th → 1st → 2nd
+- **Token Distribution**:
+  - Top 2 players (most money): Place 2 tokens each (positions 1,7 / 2,8)
+  - Bottom 4 players: Place 1 token each (positions 3, 4, 5, 6)
+
+**Files Modified**: Same files as 5-player, with 6-player logic added in parallel
+
+### Implementation Approach
+Both modes were implemented simultaneously by different agents:
+- Clean separation: 5-player agent focused solely on 5-player code
+- 6-player agent worked in parallel on 6-player code
+- No conflicts: Both implementations coexist perfectly in conditional logic
+- Both use same infrastructure (turn order calculation, final placement flow)
+
+### Testing Results
+**5-Player POTS**:
+- ✅ Games create successfully with 5 players
+- ✅ NYC48 map generates with 48 edges
+- ✅ 3 songs appear (A, B, C) - Song D correctly excluded
+- ✅ 5 token spaces highlighted each round
+- ✅ 8 normal rounds complete correctly
+- ✅ Final placement triggers after round 8
+- ✅ 8 spaces highlighted in final round
+- ✅ Turn order follows 1st,2nd,3rd,4th,5th,1st,2nd,3rd pattern
+- ✅ Game completes with all 48 tokens placed
+
+**6-Player POTS**:
+- ✅ Games create successfully with 6 players
+- ✅ NYC48 map generates with 48 edges
+- ✅ 3 songs appear with 6-variable patterns
+- ✅ 4 token spaces highlighted each round
+- ✅ 10 normal rounds complete correctly
+- ✅ Final placement triggers after round 10
+- ✅ Turn order follows 1st,2nd,3rd,4th,5th,6th,1st,2nd pattern
+- ✅ Game completes with all 48 tokens placed
+
+### Documentation Created
+- `5PLAYER_POTS_DESIGN.md` - Comprehensive 500+ line design document
+- `5PLAYER_POTS_CHECKLIST.md` - Quick implementation reference
+- `5PLAYER_POTS_COMPLETE.md` - Implementation summary and testing guide
+- `PROJECT_CONTEXT.md` - Updated with 5/6-player sections
+- `PROJECT_STATUS.md` - This file, updated with Session 7 summary
+
+**Game Status:**
+- ✅ 3-player POTS mode complete
+- ✅ 4-player POTS mode complete
+- ✅ 5-player POTS mode complete ✨ NEW
+- ✅ 6-player POTS mode complete ✨ NEW
+- ✅ All POTS player counts now supported
+- ✅ Standard mode unchanged (3-6 players)
+- ✅ VS AI mode unchanged (3-6 players)
+
+**Next Steps:**
+- Consider unifying VS AI Mode with POTS Mode mechanics
+- Continue playtesting edge cases
+- Gather feedback on asymmetric final placement mechanics
+
+---
+
+## 📝 Session 6 Progress Summary
 
 **Work Completed in This Session:**
 

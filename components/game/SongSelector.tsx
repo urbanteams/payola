@@ -2,7 +2,7 @@
 
 import React from "react";
 
-export type Song = "A" | "B" | "C";
+export type Song = "A" | "B" | "C" | "D";
 
 interface Player {
   id: string;
@@ -18,6 +18,8 @@ interface SongSelectorProps {
   turnOrderA?: string[] | null; // Turn order for Song A (array of player IDs)
   turnOrderB?: string[] | null; // Turn order for Song B (array of player IDs)
   turnOrderC?: string[] | null; // Turn order for Song C (array of player IDs)
+  turnOrderD?: string[] | null; // Turn order for Song D (array of player IDs)
+  isPOTS?: boolean; // POTS mode: always show all 3 songs
 }
 
 export function SongSelector({
@@ -27,18 +29,24 @@ export function SongSelector({
   players,
   turnOrderA,
   turnOrderB,
-  turnOrderC
+  turnOrderC,
+  turnOrderD,
+  isPOTS = false
 }: SongSelectorProps) {
   const allSongs: { id: Song; name: string; color: string; bgColor: string; borderColor: string; textColor: string }[] = [
     { id: "A", name: "Song A", color: "blue", bgColor: "bg-blue-50", borderColor: "border-blue-400", textColor: "text-blue-600" },
     { id: "B", name: "Song B", color: "green", bgColor: "bg-green-50", borderColor: "border-green-400", textColor: "text-green-600" },
     { id: "C", name: "Song C", color: "purple", bgColor: "bg-purple-50", borderColor: "border-purple-400", textColor: "text-red-600" },
+    { id: "D", name: "Song D", color: "orange", bgColor: "bg-orange-50", borderColor: "border-orange-400", textColor: "text-orange-600" },
   ];
 
-  // Filter out Song C for 3, 4, and 5 player games (only 6-player games have Song C)
-  const songs = players && players.length < 6
-    ? allSongs.filter(s => s.id !== "C")
-    : allSongs;
+  // Determine available songs based on turn orders
+  let availableSongs = allSongs.filter(s => s.id === "A" || s.id === "B"); // A and B always available
+  if (turnOrderC) availableSongs.push(allSongs.find(s => s.id === "C")!);
+  if (turnOrderD) availableSongs.push(allSongs.find(s => s.id === "D")!);
+
+  // For POTS mode, use availableSongs (which includes D for 4-player POTS)
+  const songs = availableSongs;
 
   // Convert turn order (player IDs) to player names with bold for current player
   const getTurnOrderDisplay = (songId: Song): React.ReactNode | null => {
@@ -48,6 +56,7 @@ export function SongSelector({
     if (songId === "A") turnOrder = turnOrderA || null;
     if (songId === "B") turnOrder = turnOrderB || null;
     if (songId === "C") turnOrder = turnOrderC || null;
+    if (songId === "D") turnOrder = turnOrderD || null;
 
     if (!turnOrder || turnOrder.length === 0) return null;
 
@@ -77,7 +86,7 @@ export function SongSelector({
   };
 
   return (
-    <div className={`grid gap-4 ${songs.length === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+    <div className={`grid gap-4 ${songs.length === 4 ? 'grid-cols-4' : songs.length === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
       {songs.map((song) => {
         const turnOrderDisplay = getTurnOrderDisplay(song.id);
 

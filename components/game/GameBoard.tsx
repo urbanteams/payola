@@ -14,7 +14,7 @@ import { TabViewSwitcher } from "./TabViewSwitcher";
 import { TokenPlacementPhase } from "./TokenPlacementPhase";
 import { MapViewer } from "./MapViewer";
 import { Card, CardContent } from "@/components/ui/Card";
-import { calculateSongTotals, isTieRequiringWheel } from "@/lib/game/bidding-logic";
+import { calculateSongTotals, isTieRequiringWheel, getWheelSongs } from "@/lib/game/bidding-logic";
 import { deserializeMapLayout } from "@/lib/game/map-generator";
 import { calculateSymbolsCollected, calculateBuzzHubScores } from "@/lib/game/end-game-scoring";
 import { HexIcon } from "./HexIcon";
@@ -48,7 +48,13 @@ export function GameBoard() {
   useEffect(() => {
     if (gameState?.game.status === "RESULTS" && gameState.allBids && !hasShownWheel) {
       const songTotals = calculateSongTotals(gameState.allBids);
-      const availableSongs = gameState.players.length === 3 ? ["A", "B"] : ["A", "B", "C"];
+      // Dynamically determine available songs based on which turn orders exist
+      const availableSongs: Array<"A" | "B" | "C" | "D"> = [];
+      if (gameState.game.turnOrderA) availableSongs.push("A");
+      if (gameState.game.turnOrderB) availableSongs.push("B");
+      if (gameState.game.turnOrderC) availableSongs.push("C");
+      if (gameState.game.turnOrderD) availableSongs.push("D");
+
       if (isTieRequiringWheel(songTotals, availableSongs as any)) {
         setShowWheel(true);
         setHasShownWheel(true);
@@ -59,7 +65,7 @@ export function GameBoard() {
       setShowWheel(false);
       setHasShownWheel(false);
     }
-  }, [gameState?.game.status, gameState?.allBids, hasShownWheel, gameState?.players.length]);
+  }, [gameState?.game.status, gameState?.allBids, hasShownWheel, gameState?.game.turnOrderA, gameState?.game.turnOrderB, gameState?.game.turnOrderC, gameState?.game.turnOrderD]);
 
   // Show round transition map when starting a new round (after round 1)
   useEffect(() => {
@@ -75,7 +81,7 @@ export function GameBoard() {
     }
   }, [gameState?.game.status, gameState?.game.roundNumber, previousRound, gameState?.game.mapLayout, gameState?.game.highlightedEdges]);
 
-  const handleWheelWinnerSelected = (winner: "A" | "B" | "C") => {
+  const handleWheelWinnerSelected = (winner: "A" | "B" | "C" | "D") => {
     // Wait a moment before showing results
     setTimeout(() => {
       setShowWheel(false);
@@ -232,7 +238,7 @@ export function GameBoard() {
         )}
 
         {/* Map View - Show when map view is selected */}
-        {currentView === 'map' && game.mapLayout && game.status !== "TOKEN_PLACEMENT" && (
+        {currentView === 'map' && game.mapLayout && game.status !== "TOKEN_PLACEMENT" && game.status !== "FINAL_PLACEMENT" && (
           <Card className="mb-6">
             <CardContent className="py-8">
               <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center">Game Map</h2>
@@ -315,7 +321,7 @@ export function GameBoard() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column - Player List */}
           <div>
-            <PlayerList players={players} currentRound={game.roundNumber} />
+            <PlayerList players={players} currentRound={game.roundNumber} gameStatus={game.status} />
           </div>
 
           {/* Center Column - Main Content */}
@@ -327,13 +333,33 @@ export function GameBoard() {
                   <div className="space-y-6">
                     {/* Show Promise Phase Summary if available */}
                     {promisePhaseBids && promisePhaseBids.length > 0 && (
-                      <PromisePhaseSummary bids={promisePhaseBids} />
+                      <PromisePhaseSummary
+                        bids={promisePhaseBids}
+                        availableSongs={(() => {
+                          const songs: Array<"A" | "B" | "C" | "D"> = [];
+                          if (game.turnOrderA) songs.push("A");
+                          if (game.turnOrderB) songs.push("B");
+                          if (game.turnOrderC) songs.push("C");
+                          if (game.turnOrderD) songs.push("D");
+                          return songs;
+                        })()}
+                      />
                     )}
                   </div>
                 ) : biddingState.needsRound2Bid ? (
                   <div className="space-y-6">
                     {promisePhaseBids && promisePhaseBids.length > 0 && (
-                      <PromisePhaseSummary bids={promisePhaseBids} />
+                      <PromisePhaseSummary
+                        bids={promisePhaseBids}
+                        availableSongs={(() => {
+                          const songs: Array<"A" | "B" | "C" | "D"> = [];
+                          if (game.turnOrderA) songs.push("A");
+                          if (game.turnOrderB) songs.push("B");
+                          if (game.turnOrderC) songs.push("C");
+                          if (game.turnOrderD) songs.push("D");
+                          return songs;
+                        })()}
+                      />
                     )}
                     <BiddingPanel
                       currencyBalance={currencyBalance}
@@ -343,12 +369,24 @@ export function GameBoard() {
                       turnOrderA={game.turnOrderA}
                       turnOrderB={game.turnOrderB}
                       turnOrderC={game.turnOrderC}
+                      turnOrderD={game.turnOrderD}
+                      isPOTS={game.isPOTS}
                     />
                   </div>
                 ) : biddingState.waitingForRound2 ? (
                   <div className="space-y-6">
                     {promisePhaseBids && promisePhaseBids.length > 0 && (
-                      <PromisePhaseSummary bids={promisePhaseBids} />
+                      <PromisePhaseSummary
+                        bids={promisePhaseBids}
+                        availableSongs={(() => {
+                          const songs: Array<"A" | "B" | "C" | "D"> = [];
+                          if (game.turnOrderA) songs.push("A");
+                          if (game.turnOrderB) songs.push("B");
+                          if (game.turnOrderC) songs.push("C");
+                          if (game.turnOrderD) songs.push("D");
+                          return songs;
+                        })()}
+                      />
                     )}
                   </div>
                 ) : (
@@ -360,6 +398,8 @@ export function GameBoard() {
                     turnOrderA={game.turnOrderA}
                     turnOrderB={game.turnOrderB}
                     turnOrderC={game.turnOrderC}
+                    turnOrderD={game.turnOrderD}
+                    isPOTS={game.isPOTS}
                   />
                 )}
               </>
@@ -370,9 +410,20 @@ export function GameBoard() {
               <>
                 {showWheel && game.winningSong ? (
                   <SpinningWheel
-                    winner={game.winningSong as "A" | "B" | "C"}
+                    winner={game.winningSong as "A" | "B" | "C" | "D"}
                     onWinnerSelected={handleWheelWinnerSelected}
-                    availableSongs={players.length === 3 ? ["A", "B"] : ["A", "B", "C"]}
+                    availableSongs={(() => {
+                      const allSongs: Array<"A" | "B" | "C" | "D"> = [];
+                      if (game.turnOrderA) allSongs.push("A");
+                      if (game.turnOrderB) allSongs.push("B");
+                      if (game.turnOrderC) allSongs.push("C");
+                      if (game.turnOrderD) allSongs.push("D");
+
+                      // Use getWheelSongs to determine which songs should appear on the wheel
+                      // For 4-song games with 2-way tie, only the other two songs appear
+                      const songTotals = calculateSongTotals(allBids);
+                      return getWheelSongs(songTotals, allSongs);
+                    })()}
                   />
                 ) : (
                   <ResultsDisplay
@@ -380,18 +431,21 @@ export function GameBoard() {
                     onNextRound={handleNextRound}
                     onFinishGame={() => setShowEndGameConfirm(true)}
                     isAdvancing={isAdvancing}
-                    forcedWinner={game.winningSong as "A" | "B" | "C" | null}
+                    forcedWinner={game.winningSong as "A" | "B" | "C" | "D" | null}
                     players={players}
                     turnOrderA={game.turnOrderA}
                     turnOrderB={game.turnOrderB}
                     turnOrderC={game.turnOrderC}
+                    turnOrderD={game.turnOrderD}
+                    isPOTS={game.isPOTS}
+                    currentRound={game.roundNumber}
                   />
                 )}
               </>
             )}
 
-            {/* TOKEN_PLACEMENT */}
-            {game.status === "TOKEN_PLACEMENT" && (
+            {/* TOKEN_PLACEMENT and FINAL_PLACEMENT */}
+            {(game.status === "TOKEN_PLACEMENT" || game.status === "FINAL_PLACEMENT") && (
               <TokenPlacementPhase
                 gameId={game.id}
                 players={players}
@@ -399,11 +453,13 @@ export function GameBoard() {
                 highlightedEdges={game.highlightedEdges}
                 currentTurnIndex={game.currentTurnIndex ?? 0}
                 winningSong={game.winningSong}
-                turnOrderA={game.turnOrderA}
-                turnOrderB={game.turnOrderB}
+                turnOrderA={game.turnOrderA || []}
+                turnOrderB={game.turnOrderB || []}
                 turnOrderC={game.turnOrderC}
+                turnOrderD={game.turnOrderD}
                 placementTimeout={game.placementTimeout}
                 tokens={gameState.tokens || []}
+                isFinalPlacement={game.status === "FINAL_PLACEMENT"}
                 onTokenPlaced={() => {
                   // Refetch will happen automatically via polling
                 }}

@@ -18,18 +18,47 @@ function generateAIBid(
   turnOrderA: string[],
   turnOrderB: string[],
   turnOrderC: string[] | null,
+  turnOrderD: string[] | null,
   currentRound: number,
-  totalRounds: number
-): { song: "A" | "B" | "C", amount: number } {
-  // Only 6-player games have Song C available
-  let availableSongs: ("A" | "B" | "C")[] = turnOrderC ? ["A", "B", "C"] : ["A", "B"];
+  totalRounds: number,
+  biddingRound: number,
+  round1Bids: Array<{ playerId: string; song: string; amount: number }>,
+  aiPlayers: Array<{ id: string }>
+): { song: "A" | "B" | "C" | "D", amount: number } {
+  // CRITICAL: If AI has no money, can only bid $0
+  if (currencyBalance <= 0) {
+    // Determine available songs for selection (even though bidding $0)
+    let availableSongs: ("A" | "B" | "C" | "D")[] = ["A", "B"];
+    if (turnOrderC) availableSongs.push("C");
+    if (turnOrderD) availableSongs.push("D");
+
+    // Filter out songs with fewer token placements
+    const songTokenCounts: Record<"A" | "B" | "C" | "D", number> = {
+      A: turnOrderA.filter(id => id === playerId).length,
+      B: turnOrderB.filter(id => id === playerId).length,
+      C: turnOrderC ? turnOrderC.filter(id => id === playerId).length : 0,
+      D: turnOrderD ? turnOrderD.filter(id => id === playerId).length : 0,
+    };
+    const maxTokens = Math.max(...availableSongs.map(song => songTokenCounts[song]));
+    availableSongs = availableSongs.filter(song => songTokenCounts[song] === maxTokens);
+    const randomSong = availableSongs[Math.floor(Math.random() * availableSongs.length)];
+
+    console.log(`[AI Bidding] Player has $0 balance, can only bid $0 to ${randomSong}`);
+    return { song: randomSong, amount: 0 };
+  }
+
+  // Determine available songs based on which turn orders exist
+  let availableSongs: ("A" | "B" | "C" | "D")[] = ["A", "B"];
+  if (turnOrderC) availableSongs.push("C");
+  if (turnOrderD) availableSongs.push("D");
 
   // Filter out songs with fewer token placements
   // Count how many tokens this player gets to place for each song
-  const songTokenCounts: Record<"A" | "B" | "C", number> = {
+  const songTokenCounts: Record<"A" | "B" | "C" | "D", number> = {
     A: turnOrderA.filter(id => id === playerId).length,
     B: turnOrderB.filter(id => id === playerId).length,
     C: turnOrderC ? turnOrderC.filter(id => id === playerId).length : 0,
+    D: turnOrderD ? turnOrderD.filter(id => id === playerId).length : 0,
   };
 
   // Find maximum token count
@@ -46,6 +75,89 @@ function generateAIBid(
     return { song: randomSong, amount: currencyBalance };
   }
 
+  // BRIBE PHASE (Round 2) SPECIAL LOGIC
+  if (biddingRound === 2) {
+    // Find the highest promise amount from Round 1
+    const highestPromise = Math.max(...round1Bids.map(b => b.amount), 0);
+
+    // Check if AI is the only player in the Bribe Phase
+    // This happens when only this AI player bid zero in Round 1 (all others promised non-zero)
+    const zeroBidders = round1Bids.filter(b => b.amount === 0);
+    const isAISoloBriber = zeroBidders.length === 1 && zeroBidders[0].playerId === playerId;
+
+    console.log(`[AI Bribe Logic] Round 2 bidding - zeroBidders: ${zeroBidders.length}, isAISoloBriber: ${isAISoloBriber}, highestPromise: $${highestPromise}`);
+
+    if (isAISoloBriber) {
+      // AI is the only player in Bribe Phase
+      // Calculate current totals from Round 1
+      const songTotals: Record<"A" | "B" | "C" | "D", number> = {
+        A: 0, B: 0, C: 0, D: 0
+      };
+      for (const bid of round1Bids) {
+        const song = bid.song as "A" | "B" | "C" | "D";
+        songTotals[song] += bid.amount;
+      }
+
+      // Find the currently leading song
+      const maxTotal = Math.max(...availableSongs.map(s => songTotals[s]));
+
+      // Calculate minimum amount needed to put preferred song $1 ahead
+      const minAmountNeeded = maxTotal - songTotals[randomSong] + 1;
+
+      console.log(`[AI Solo Briber] Song totals: A=$${songTotals.A}, B=$${songTotals.B}, C=$${songTotals.C}, D=$${songTotals.D}`);
+      console.log(`[AI Solo Briber] Preferred song: ${randomSong}, current total: $${songTotals[randomSong]}, maxTotal: $${maxTotal}, minAmountNeeded: $${minAmountNeeded}`);
+
+      // AI can only bid 0 or the exact amount needed
+      if (minAmountNeeded <= 0 || minAmountNeeded > currencyBalance) {
+        // Preferred song is already winning or can't afford to win
+        console.log(`[AI Solo Briber] Bidding $0 (already winning or can't afford $${minAmountNeeded})`);
+        return { song: randomSong, amount: 0 };
+      } else {
+        // 50% chance to bid 0, 50% chance to bid exact amount needed
+        const amount = Math.random() < 0.5 ? 0 : minAmountNeeded;
+        console.log(`[AI Solo Briber] Bidding $${amount} to ${randomSong} (can only bid $0 or $${minAmountNeeded})`);
+        return { song: randomSong, amount };
+      }
+    } else {
+      // Other players are also in the Bribe Phase
+      // AI must bid higher than the highest promise, unless no one promised
+      console.log(`[AI Multi Briber] Other players also in Bribe Phase. Highest promise: $${highestPromise}`);
+
+      if (highestPromise === 0) {
+        // No one promised, AI can bid any amount
+        let amount: number;
+        if (Math.random() < 0.5) {
+          amount = 0;
+        } else {
+          const maxBid = Math.min(currencyBalance, 10);
+          amount = Math.floor(Math.random() * maxBid) + 1;
+        }
+        console.log(`[AI Multi Briber] No one promised, bidding $${amount} to ${randomSong}`);
+        return { song: randomSong, amount };
+      } else {
+        // Must bid higher than highest promise
+        const minBid = highestPromise + 1;
+        if (minBid > currencyBalance) {
+          // Can't afford to bid higher, bid 0
+          console.log(`[AI Multi Briber] Cannot afford to bid higher than $${highestPromise}, bidding $0`);
+          return { song: randomSong, amount: 0 };
+        } else {
+          // 50% chance to bid 0, 50% chance to bid higher than highest promise
+          if (Math.random() < 0.5) {
+            console.log(`[AI Multi Briber] Chose to bid $0 to ${randomSong}`);
+            return { song: randomSong, amount: 0 };
+          } else {
+            const maxBid = Math.min(currencyBalance, highestPromise + 10);
+            const amount = Math.floor(Math.random() * (maxBid - minBid + 1)) + minBid;
+            console.log(`[AI Multi Briber] Bidding $${amount} to ${randomSong} (must be > $${highestPromise})`);
+            return { song: randomSong, amount };
+          }
+        }
+      }
+    }
+  }
+
+  // PROMISE PHASE (Round 1) LOGIC
   // Random amount between 0 and balance (weighted toward lower amounts)
   // 50% chance of bidding 0
   // 50% chance of bidding 1 to balance
@@ -107,6 +219,7 @@ export async function processAIBids(gameId: string): Promise<void> {
     const turnOrderA = game.turnOrderA ? JSON.parse(game.turnOrderA) : [];
     const turnOrderB = game.turnOrderB ? JSON.parse(game.turnOrderB) : [];
     const turnOrderC = game.turnOrderC ? JSON.parse(game.turnOrderC) : null;
+    const turnOrderD = game.turnOrderD ? JSON.parse(game.turnOrderD) : null;
 
     for (const aiPlayer of aiPlayers) {
       // Check if AI player needs to bid in current round
@@ -120,8 +233,12 @@ export async function processAIBids(gameId: string): Promise<void> {
           turnOrderA,
           turnOrderB,
           turnOrderC,
+          turnOrderD,
           game.roundNumber,
-          totalRounds
+          totalRounds,
+          biddingRound,
+          round1Bids,
+          aiPlayers
         );
 
         await prisma.bid.create({
@@ -147,8 +264,12 @@ export async function processAIBids(gameId: string): Promise<void> {
             turnOrderA,
             turnOrderB,
             turnOrderC,
+            turnOrderD,
             game.roundNumber,
-            totalRounds
+            totalRounds,
+            biddingRound,
+            round1Bids,
+            aiPlayers
           );
 
           await prisma.bid.create({

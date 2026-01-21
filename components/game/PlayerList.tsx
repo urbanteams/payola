@@ -14,9 +14,10 @@ interface Player {
 interface PlayerListProps {
   players: Player[];
   currentRound: number;
+  gameStatus?: string;
 }
 
-export function PlayerList({ players, currentRound }: PlayerListProps) {
+export function PlayerList({ players, currentRound, gameStatus }: PlayerListProps) {
   return (
     <Card>
       <CardHeader>
@@ -62,7 +63,9 @@ export function PlayerList({ players, currentRound }: PlayerListProps) {
         </div>
 
         <div className="mt-4 text-center">
-          <p className="text-sm text-gray-600">Round {currentRound}</p>
+          <p className="text-sm text-gray-600">
+            {gameStatus === "FINAL_PLACEMENT" ? "Final Round" : `Round ${currentRound}`}
+          </p>
         </div>
       </CardContent>
     </Card>

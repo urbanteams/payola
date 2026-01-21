@@ -1,16 +1,16 @@
 /**
  * Song options in the game
  */
-export type Song = "A" | "B" | "C";
+export type Song = "A" | "B" | "C" | "D";
 
 /**
  * Calculate total bids for each song
  */
 export function calculateSongTotals(bids: Array<{ song: string; amount: number }>): Record<Song, number> {
-  const totals: Record<Song, number> = { A: 0, B: 0, C: 0 };
+  const totals: Record<Song, number> = { A: 0, B: 0, C: 0, D: 0 };
 
   for (const bid of bids) {
-    if (bid.song === "A" || bid.song === "B" || bid.song === "C") {
+    if (bid.song === "A" || bid.song === "B" || bid.song === "C" || bid.song === "D") {
       totals[bid.song] += bid.amount;
     }
   }
@@ -20,8 +20,10 @@ export function calculateSongTotals(bids: Array<{ song: string; amount: number }
 
 /**
  * Check if there's a tie requiring the wheel spinner
- * For 3-player games (2 songs): 2-way tie between A and B
- * For 4+ player games (3 songs): 3-way tie between A, B, and C
+ * For 2-song games: 2-way tie between A and B
+ * For 3-song games: 3-way tie between A, B, and C
+ * For 4-song games: 4-way tie OR 2-way tie for the most (wheel spins between those two)
+ * Note: 3-way ties in 4-song games do NOT require a wheel (fourth song wins automatically)
  */
 export function isTieRequiringWheel(totals: Record<Song, number>, availableSongs: Song[]): boolean {
   // For 2-song games (A and B only)
@@ -30,7 +32,21 @@ export function isTieRequiringWheel(totals: Record<Song, number>, availableSongs
   }
 
   // For 3-song games (A, B, and C)
-  return totals.A === totals.B && totals.B === totals.C && totals.A > 0;
+  if (availableSongs.length === 3) {
+    return totals.A === totals.B && totals.B === totals.C && totals.A > 0;
+  }
+
+  // For 4-song games
+  if (availableSongs.length === 4) {
+    const maxTotal = Math.max(...availableSongs.map(s => totals[s]));
+    const topSongs = availableSongs.filter(song => totals[song] === maxTotal);
+
+    // 4-way tie OR 2-way tie for the most (both require wheel)
+    // 3-way ties do NOT require wheel (fourth song wins automatically)
+    return (topSongs.length === 4 || topSongs.length === 2) && maxTotal > 0;
+  }
+
+  return false;
 }
 
 /**
@@ -41,10 +57,33 @@ export function isThreeWayTie(totals: Record<Song, number>): boolean {
 }
 
 /**
+ * Get which songs should appear on the wheel spinner
+ * For most cases, all available songs
+ * For 4-song games with a 2-way tie: only the two songs tied for the most
+ */
+export function getWheelSongs(totals: Record<Song, number>, availableSongs: Song[]): Song[] {
+  if (availableSongs.length === 4) {
+    const maxTotal = Math.max(...availableSongs.map(s => totals[s]));
+    const topSongs = availableSongs.filter(song => totals[song] === maxTotal);
+
+    // If there's a 2-way tie for the most, wheel spins between those two
+    if (topSongs.length === 2 && maxTotal > 0) {
+      return topSongs;
+    }
+  }
+
+  // For all other cases, all available songs are on the wheel
+  return availableSongs;
+}
+
+/**
  * Determine winning song with tie-breaking rules:
  * - If one song has the most, it wins
- * - For 3+ songs: If two songs tie for most, the third song wins
- * - For 2 songs: If they tie, needs wheel spinner (return null)
+ * - For 2-song games: If they tie, needs wheel spinner (return null)
+ * - For 3-song games: If two songs tie for most, the third song wins
+ * - For 4-song games with 2-way tie: wheel spins between those two songs (return null)
+ * - For 4-song games with 3-way tie: the fourth song wins automatically
+ * - For 4-song games with 4-way tie: wheel spins between all four (return null)
  * - If all songs tie at 0, random winner
  */
 export function determineWinningSong(totals: Record<Song, number>, forcedWinner?: Song, availableSongs?: Song[]): Song | null {
@@ -53,7 +92,7 @@ export function determineWinningSong(totals: Record<Song, number>, forcedWinner?
     return forcedWinner;
   }
 
-  const songs = availableSongs || ["A", "B", "C"];
+  const songs = availableSongs || ["A", "B"];
   const maxTotal = Math.max(...songs.map(s => totals[s]));
   const topSongs = songs.filter((song) => totals[song] === maxTotal);
 
@@ -61,17 +100,32 @@ export function determineWinningSong(totals: Record<Song, number>, forcedWinner?
     // Clear winner
     return topSongs[0];
   } else if (topSongs.length === 2) {
-    // Two songs tied
+    // Two songs tied for the most
     if (songs.length === 2) {
       // For 2-song games, a tie requires wheel spinner
       return null;
-    } else {
+    } else if (songs.length === 3) {
       // For 3-song games, the third song wins
       const thirdSong = songs.find((s) => !topSongs.includes(s));
       return thirdSong!;
+    } else if (songs.length === 4) {
+      // For 4-song games, wheel spins between those two songs
+      return null;
     }
+  } else if (topSongs.length === 3) {
+    // Three songs tied for the most
+    if (songs.length === 4) {
+      // For 4-song games, the fourth song wins
+      const fourthSong = songs.find((s) => !topSongs.includes(s));
+      return fourthSong!;
+    }
+    // For other cases (3-song game with all tied), needs wheel
+    if (maxTotal === 0) {
+      return songs[Math.floor(Math.random() * songs.length)];
+    }
+    return null;
   } else {
-    // All songs tied
+    // All songs tied (4-way tie in 4-song games, or other cases)
     if (maxTotal === 0) {
       // All at zero - random winner
       return songs[Math.floor(Math.random() * songs.length)];
@@ -79,6 +133,8 @@ export function determineWinningSong(totals: Record<Song, number>, forcedWinner?
     // All tied with non-zero - needs wheel
     return null;
   }
+
+  return null;
 }
 
 /**

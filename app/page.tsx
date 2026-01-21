@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/Button";
 
 export default function Home() {
   const router = useRouter();
-  const [mode, setMode] = useState<"menu" | "create" | "join" | "vsai" | "pots">("menu");
+  const [mode, setMode] = useState<"menu" | "create" | "join" | "vsai">("menu");
   const [playerName, setPlayerName] = useState("");
   const [roomCode, setRoomCode] = useState("");
   const [loading, setLoading] = useState(false);
@@ -121,42 +121,6 @@ export default function Home() {
     }
   };
 
-  const handleCreatePOTSGame = async () => {
-    if (!playerName.trim()) {
-      setError("Please enter your name");
-      return;
-    }
-
-    setLoading(true);
-    setError("");
-
-    try {
-      const response = await fetch("/api/game/create-pots", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          playerName: playerName.trim(),
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("Server error:", errorData);
-        const errorMsg = errorData.details || errorData.error || "Failed to create POTS game";
-        throw new Error(errorMsg);
-      }
-
-      const data = await response.json();
-      router.push(`/game/${data.gameId}`);
-    } catch (err) {
-      console.error("Create POTS game error:", err);
-      setError(err instanceof Error ? err.message : "Failed to create POTS game");
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-50 flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
@@ -174,9 +138,6 @@ export default function Home() {
               </Button>
               <Button onClick={() => setMode("vsai")} variant="secondary" className="w-full text-lg py-3 bg-purple-600 hover:bg-purple-700 text-white">
                 VS AI Mode
-              </Button>
-              <Button onClick={() => setMode("pots")} variant="secondary" className="w-full text-lg py-3 bg-green-600 hover:bg-green-700 text-white">
-                POTS Mode (Experimental)
               </Button>
               <Button onClick={() => setMode("join")} variant="secondary" className="w-full text-lg py-3">
                 Join Existing Game
@@ -280,51 +241,6 @@ export default function Home() {
 
               <Button onClick={handleCreateAIGame} disabled={loading} className="w-full bg-purple-600 hover:bg-purple-700 text-white">
                 {loading ? "Creating..." : "Start AI Game"}
-              </Button>
-              <Button onClick={() => { setMode("menu"); setError(""); }} variant="secondary" className="w-full">
-                Back
-              </Button>
-            </div>
-          )}
-
-          {mode === "pots" && (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Your Name:
-                </label>
-                <input
-                  type="text"
-                  value={playerName}
-                  onChange={(e) => setPlayerName(e.target.value)}
-                  placeholder="Enter your name"
-                  disabled={loading}
-                  className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none disabled:opacity-50 text-gray-900"
-                  onKeyDown={(e) => e.key === "Enter" && handleCreatePOTSGame()}
-                />
-              </div>
-
-              {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-                  {error}
-                </div>
-              )}
-
-              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                <p className="text-sm text-green-800 mb-2">
-                  <strong>POTS Mode:</strong> 3-player game with fixed song implications vs 2 AI opponents.
-                </p>
-                <ul className="text-xs text-green-700 space-y-1">
-                  <li>• Song A: ABB (1 token for A, 2 for B)</li>
-                  <li>• Song B: BCC (1 token for B, 2 for C)</li>
-                  <li>• Song C: CAA (1 token for C, 2 for A)</li>
-                  <li>• 10 rounds with 3 tokens per round</li>
-                  <li>• Final placement phase based on money remaining</li>
-                </ul>
-              </div>
-
-              <Button onClick={handleCreatePOTSGame} disabled={loading} className="w-full bg-green-600 hover:bg-green-700 text-white">
-                {loading ? "Creating..." : "Start POTS Game"}
               </Button>
               <Button onClick={() => { setMode("menu"); setError(""); }} variant="secondary" className="w-full">
                 Back

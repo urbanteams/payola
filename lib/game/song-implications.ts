@@ -6,13 +6,28 @@
  * Also supports POTS mode with fixed implications
  */
 
-import { SONG_IMPLICATION_PATTERNS, SongImplicationPattern, POTS_PATTERN } from './song-implications-data';
+import { SONG_IMPLICATION_PATTERNS, SongImplicationPattern, POTS_PATTERN, POTS_PATTERN_4PLAYER, POTS_PATTERN_5PLAYER, POTS_PATTERN_6PLAYER } from './song-implications-data';
 
 export interface SongImplications {
   songA: string; // Turn order string with player indices (e.g., "012012")
   songB: string;
   songC?: string;
+  songD?: string;
   tokensPerRound: number;
+}
+
+/**
+ * Shuffle an array using Fisher-Yates algorithm
+ * @param array Array to shuffle
+ * @returns New shuffled array (does not modify original)
+ */
+export function shuffleArray<T>(array: T[]): T[] {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
 }
 
 /**
@@ -27,17 +42,14 @@ export function createRandomPlayerMapping(playerCount: number): Record<string, n
   const indices = Array.from({ length: playerCount }, (_, i) => i);
 
   // Fisher-Yates shuffle
-  for (let i = indices.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [indices[i], indices[j]] = [indices[j], indices[i]];
-  }
+  const shuffled = shuffleArray(indices);
 
   // Map letters to shuffled indices
   const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   const mapping: Record<string, number> = {};
 
   for (let i = 0; i < playerCount; i++) {
-    mapping[letters[i]] = indices[i];
+    mapping[letters[i]] = shuffled[i];
   }
 
   return mapping;
@@ -72,7 +84,7 @@ export function applyPlayerMapping(
  *
  * @param playerCount Number of players in the game (3-6)
  * @param playerMapping Optional custom mapping from letters to player indices
- * @param usePOTS Whether to use POTS mode (fixed implications, 3 players only)
+ * @param usePOTS Whether to use POTS mode (fixed implications, 3-4 players)
  * @returns Song implications object with turn orders
  */
 export function getSongImplications(
@@ -82,16 +94,28 @@ export function getSongImplications(
 ): SongImplications {
   // Use POTS pattern if requested
   if (usePOTS) {
-    if (playerCount !== 3) {
-      throw new Error('POTS mode is only available for 3-player games');
+    let pattern: SongImplicationPattern;
+
+    if (playerCount === 3) {
+      pattern = POTS_PATTERN;
+    } else if (playerCount === 4) {
+      pattern = POTS_PATTERN_4PLAYER;
+    } else if (playerCount === 5) {
+      pattern = POTS_PATTERN_5PLAYER;
+    } else if (playerCount === 6) {
+      pattern = POTS_PATTERN_6PLAYER;
+    } else {
+      throw new Error('POTS mode is only available for 3-6 player games');
     }
-    const pattern = POTS_PATTERN;
-    // POTS uses fixed mapping (A=0, B=1, C=2)
-    const fixedMapping = { A: 0, B: 1, C: 2 };
+
+    // POTS uses fixed song patterns, but randomized player assignments each round
+    // Example: Song A always has pattern "ABCB", but which players are A, B, C changes each round
+    const mapping = playerMapping || createRandomPlayerMapping(playerCount);
     return {
-      songA: applyPlayerMapping(pattern.songA, fixedMapping),
-      songB: applyPlayerMapping(pattern.songB, fixedMapping),
-      songC: pattern.songC ? applyPlayerMapping(pattern.songC, fixedMapping) : undefined,
+      songA: applyPlayerMapping(pattern.songA, mapping),
+      songB: applyPlayerMapping(pattern.songB, mapping),
+      songC: pattern.songC ? applyPlayerMapping(pattern.songC, mapping) : undefined,
+      songD: pattern.songD ? applyPlayerMapping(pattern.songD, mapping) : undefined,
       tokensPerRound: pattern.tokensPerRound,
     };
   }
@@ -109,6 +133,7 @@ export function getSongImplications(
     songA: applyPlayerMapping(pattern.songA, mapping),
     songB: applyPlayerMapping(pattern.songB, mapping),
     songC: pattern.songC ? applyPlayerMapping(pattern.songC, mapping) : undefined,
+    songD: pattern.songD ? applyPlayerMapping(pattern.songD, mapping) : undefined,
     tokensPerRound: pattern.tokensPerRound,
   };
 }
@@ -146,7 +171,16 @@ export function getTokensPerRound(playerCount: number): number {
  */
 export function getTotalRounds(playerCount: number, usePOTS?: boolean): number {
   if (usePOTS) {
-    return POTS_PATTERN.totalRounds;
+    if (playerCount === 3) {
+      return POTS_PATTERN.totalRounds;
+    } else if (playerCount === 4) {
+      return POTS_PATTERN_4PLAYER.totalRounds;
+    } else if (playerCount === 5) {
+      return POTS_PATTERN_5PLAYER.totalRounds;
+    } else if (playerCount === 6) {
+      return POTS_PATTERN_6PLAYER.totalRounds;
+    }
+    return 10; // Default for POTS mode
   }
   const pattern = SONG_IMPLICATION_PATTERNS[playerCount];
   if (!pattern) return 0;
@@ -206,6 +240,7 @@ export function getSongImplicationPreview(playerCount: number): {
   songA: string;
   songB: string;
   songC?: string;
+  songD?: string;
 } {
   const pattern = SONG_IMPLICATION_PATTERNS[playerCount];
   if (!pattern) {
@@ -216,6 +251,7 @@ export function getSongImplicationPreview(playerCount: number): {
     songA: pattern.songA,
     songB: pattern.songB,
     songC: pattern.songC,
+    songD: pattern.songD,
   };
 }
 
@@ -238,6 +274,10 @@ export function calculateTokenDistribution(
     result.songC = {};
   }
 
+  if (pattern.songD) {
+    result.songD = {};
+  }
+
   // Count occurrences of each letter in each song pattern
   const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.slice(0, playerCount);
 
@@ -249,6 +289,10 @@ export function calculateTokenDistribution(
 
     if (pattern.songC) {
       result.songC![i] = (pattern.songC.match(new RegExp(letter, 'g')) || []).length;
+    }
+
+    if (pattern.songD) {
+      result.songD![i] = (pattern.songD.match(new RegExp(letter, 'g')) || []).length;
     }
   }
 

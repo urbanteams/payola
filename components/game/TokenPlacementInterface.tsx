@@ -3,9 +3,20 @@
 import React, { useState } from 'react';
 import { HexagonalMap } from './HexagonalMap';
 import { OrientationModal } from './OrientationModal';
-import type { MapLayout, InfluenceToken } from '@/lib/game/map-generator';
+import type { MapLayout } from '@/lib/game/map-generator';
 import type { EdgeId } from '@/lib/game/hex-grid';
 import { parseEdgeId } from '@/lib/game/hex-grid';
+
+interface InfluenceToken {
+  id: string;
+  edgeId: EdgeId;
+  playerId: string;
+  playerName: string;
+  playerColor: string | null;
+  tokenType: string;
+  orientation: string;
+  roundNumber: number;
+}
 
 export interface TokenPlacementInterfaceProps {
   gameId: string;

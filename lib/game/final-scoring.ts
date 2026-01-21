@@ -58,7 +58,7 @@ function calculateHouseScoring(
   }>,
   mapLayout: MapLayout
 ): Record<string, { totalHouses: number; rank: number; vp: number }> {
-  const houseHexes = mapLayout.hexes.filter((h) => h.type === 'house');
+  const houseHexes = mapLayout.hexes.filter((h) => h.type === 'households');
   const playerHouses: Record<string, number> = {};
 
   // Initialize all players
@@ -168,11 +168,11 @@ function calculateSetCollectionScoring(
   }>,
   mapLayout: MapLayout
 ): Record<string, { symbols: HexType[]; count: number; vp: number }> {
-  const collectibleTypes: HexType[] = ['trumpet', 'cowboy', 'saxophone', 'guitar', 'microphone'];
+  const collectibleTypes: HexType[] = ['bluesStar', 'countryStar', 'jazzStar', 'rockStar', 'popStar'];
 
-  // Add singer for 5-6 player games
+  // Add classicalStar for 5-6 player games
   if (mapLayout.playerCount >= 5) {
-    collectibleTypes.push('singer');
+    collectibleTypes.push('classicalStar');
   }
 
   const collectibleHexes = mapLayout.hexes.filter((h) => collectibleTypes.includes(h.type));

@@ -20,9 +20,11 @@ interface BiddingPanelProps {
   turnOrderA?: string[] | null; // Array of player IDs
   turnOrderB?: string[] | null; // Array of player IDs
   turnOrderC?: string[] | null; // Array of player IDs
+  turnOrderD?: string[] | null; // Array of player IDs
+  isPOTS?: boolean; // POTS mode flag
 }
 
-export function BiddingPanel({ currencyBalance, round, onSubmitBid, disabled = false, players, turnOrderA, turnOrderB, turnOrderC }: BiddingPanelProps) {
+export function BiddingPanel({ currencyBalance, round, onSubmitBid, disabled = false, players, turnOrderA, turnOrderB, turnOrderC, turnOrderD, isPOTS = false }: BiddingPanelProps) {
   const [selectedSong, setSelectedSong] = useState<Song | null>(null);
   const [bidAmount, setBidAmount] = useState<number>(0);
   const [submitting, setSubmitting] = useState(false);
@@ -79,6 +81,8 @@ export function BiddingPanel({ currencyBalance, round, onSubmitBid, disabled = f
             turnOrderA={turnOrderA}
             turnOrderB={turnOrderB}
             turnOrderC={turnOrderC}
+            turnOrderD={turnOrderD}
+            isPOTS={isPOTS}
           />
         </div>
 

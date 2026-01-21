@@ -14,17 +14,31 @@ interface Bid {
 
 interface PromisePhaseSummaryProps {
   bids: Bid[];
+  availableSongs?: Array<"A" | "B" | "C" | "D">;
 }
 
-export function PromisePhaseSummary({ bids }: PromisePhaseSummaryProps) {
+export function PromisePhaseSummary({ bids, availableSongs }: PromisePhaseSummaryProps) {
   const songTotals = calculateSongTotals(bids);
 
-  const getSongColor = (song: string) => {
+  // Determine available songs from bids if not provided
+  const songs = availableSongs || (() => {
+    const uniqueSongs = new Set(bids.map(b => b.song));
+    const result: Array<"A" | "B" | "C" | "D"> = [];
+    if (uniqueSongs.has("A")) result.push("A");
+    if (uniqueSongs.has("B")) result.push("B");
+    if (uniqueSongs.has("C")) result.push("C");
+    if (uniqueSongs.has("D")) result.push("D");
+    // If no bids yet, default to A and B
+    return result.length > 0 ? result : ["A", "B"];
+  })();
+
+  const getSongColorClasses = (song: string) => {
     switch (song) {
-      case "A": return "blue";
-      case "B": return "green";
-      case "C": return "red";
-      default: return "gray";
+      case "A": return { text: "text-blue-600", bg: "bg-gray-50" };
+      case "B": return { text: "text-green-600", bg: "bg-gray-50" };
+      case "C": return { text: "text-red-600", bg: "bg-gray-50" };
+      case "D": return { text: "text-orange-600", bg: "bg-gray-50" };
+      default: return { text: "text-gray-600", bg: "bg-gray-50" };
     }
   };
 
@@ -38,17 +52,21 @@ export function PromisePhaseSummary({ bids }: PromisePhaseSummaryProps) {
       </CardHeader>
       <CardContent>
         {/* Song Totals */}
-        <div className="grid grid-cols-3 gap-4 mb-4">
-          {["A", "B", "C"].map((song) => {
-            const total = songTotals[song as "A" | "B" | "C"];
-            const color = getSongColor(song);
+        <div className={`grid gap-4 mb-4 ${
+          songs.length === 2 ? 'grid-cols-2' :
+          songs.length === 3 ? 'grid-cols-3' :
+          'grid-cols-4'
+        }`}>
+          {songs.map((song) => {
+            const total = songTotals[song];
+            const colorClasses = getSongColorClasses(song);
 
             return (
               <div
                 key={song}
-                className="border-2 border-gray-300 rounded-lg p-4 text-center bg-gray-50"
+                className={`border-2 border-gray-300 rounded-lg p-4 text-center ${colorClasses.bg}`}
               >
-                <div className={`text-4xl font-bold mb-1 text-${color}-600`}>{song}</div>
+                <div className={`text-4xl font-bold mb-1 ${colorClasses.text}`}>{song}</div>
                 <div className="text-2xl font-bold text-gray-800">${total}</div>
                 <div className="text-xs text-gray-600">promised</div>
               </div>
@@ -60,7 +78,7 @@ export function PromisePhaseSummary({ bids }: PromisePhaseSummaryProps) {
         <div className="space-y-2">
           <h4 className="text-sm font-semibold text-gray-700">Individual Promises:</h4>
           {bids.map((bid, index) => {
-            const color = getSongColor(bid.song);
+            const colorClasses = getSongColorClasses(bid.song);
 
             return (
               <div
@@ -76,7 +94,7 @@ export function PromisePhaseSummary({ bids }: PromisePhaseSummaryProps) {
 
                 <div className="flex items-center space-x-3">
                   {bid.amount > 0 && (
-                    <div className={`text-lg font-bold text-${color}-600`}>
+                    <div className={`text-lg font-bold ${colorClasses.text}`}>
                       Song {bid.song}
                     </div>
                   )}

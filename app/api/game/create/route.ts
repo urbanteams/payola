@@ -37,11 +37,13 @@ export async function POST(request: NextRequest) {
 
     // Note: Map layout will be generated when game starts (when we know player count)
     // Map type (NYC36 vs NYC48) is determined automatically based on player count
+    // All games now use POTS mechanics (fixed song patterns with randomized player assignments)
     const game = await prisma.game.create({
       data: {
         roomCode,
         status: "LOBBY",
         roundNumber: 1,
+        isPOTS: true, // All games use POTS mechanics now (human players only)
         // mapType, mapLayout and totalRounds will be set when game starts
       },
     });

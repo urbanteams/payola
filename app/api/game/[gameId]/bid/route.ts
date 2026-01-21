@@ -1,8 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { calculateSongTotals, determineWinningSong, calculateCurrencyDeductions } from "@/lib/game/bidding-logic";
+import { calculateSongTotals, determineWinningSong, calculateCurrencyDeductions, Song } from "@/lib/game/bidding-logic";
 import { processAIBids } from "@/lib/game/ai-bidding";
+
+// Helper function to determine available songs based on game turn orders
+function getAvailableSongs(game: { turnOrderA: string | null; turnOrderB: string | null; turnOrderC: string | null; turnOrderD?: string | null }): Song[] {
+  const songs: Song[] = [];
+  if (game.turnOrderA) songs.push("A");
+  if (game.turnOrderB) songs.push("B");
+  if (game.turnOrderC) songs.push("C");
+  if (game.turnOrderD) songs.push("D");
+  return songs;
+}
 
 export async function POST(
   request: NextRequest,
@@ -19,7 +29,7 @@ export async function POST(
     const { song, amount } = body;
 
     // Validate input
-    if (!song || !["A", "B", "C"].includes(song)) {
+    if (!song || !["A", "B", "C", "D"].includes(song)) {
       return NextResponse.json(
         { error: "Invalid song choice" },
         { status: 400 }
@@ -125,15 +135,14 @@ export async function POST(
       } else {
         // No one bid 0, skip to results - determine winner and apply deductions
         const songTotals = calculateSongTotals(allBids);
-        const playerCount = game.players.length;
-        const availableSongs = playerCount === 3 ? ["A", "B"] : ["A", "B", "C"];
-        let winningSong = determineWinningSong(songTotals, undefined, availableSongs as any);
+        const availableSongs = getAvailableSongs(game);
+        let winningSong = determineWinningSong(songTotals, undefined, availableSongs);
 
         // If tie (null), randomly select from tied songs
         if (winningSong === null) {
-          const maxTotal = Math.max(...availableSongs.map((s: any) => songTotals[s]));
-          const tiedSongs = availableSongs.filter((s: any) => songTotals[s] === maxTotal);
-          winningSong = tiedSongs[Math.floor(Math.random() * tiedSongs.length)] as any;
+          const maxTotal = Math.max(...availableSongs.map((s: Song) => songTotals[s]));
+          const tiedSongs = availableSongs.filter((s: Song) => songTotals[s] === maxTotal);
+          winningSong = tiedSongs[Math.floor(Math.random() * tiedSongs.length)];
         }
 
         const deductions = calculateCurrencyDeductions(allBids, winningSong);
@@ -200,15 +209,14 @@ export async function POST(
 
         // Calculate winner and deductions
         const songTotals = calculateSongTotals(allCurrentRoundBids);
-        const playerCount = game.players.length;
-        const availableSongs = playerCount === 3 ? ["A", "B"] : ["A", "B", "C"];
-        let winningSong = determineWinningSong(songTotals, undefined, availableSongs as any);
+        const availableSongs = getAvailableSongs(game);
+        let winningSong = determineWinningSong(songTotals, undefined, availableSongs);
 
         // If tie (null), randomly select from tied songs
         if (winningSong === null) {
-          const maxTotal = Math.max(...availableSongs.map((s: any) => songTotals[s]));
-          const tiedSongs = availableSongs.filter((s: any) => songTotals[s] === maxTotal);
-          winningSong = tiedSongs[Math.floor(Math.random() * tiedSongs.length)] as any;
+          const maxTotal = Math.max(...availableSongs.map((s: Song) => songTotals[s]));
+          const tiedSongs = availableSongs.filter((s: Song) => songTotals[s] === maxTotal);
+          winningSong = tiedSongs[Math.floor(Math.random() * tiedSongs.length)];
         }
 
         const deductions = calculateCurrencyDeductions(allCurrentRoundBids, winningSong);
@@ -293,14 +301,13 @@ export async function POST(
               });
 
               const songTotals = calculateSongTotals(allBids);
-              const playerCount = updatedGame.players.length;
-              const availableSongs = playerCount === 3 ? ["A", "B"] : ["A", "B", "C"];
-              let winningSong = determineWinningSong(songTotals, undefined, availableSongs as any);
+              const availableSongs = getAvailableSongs(updatedGame);
+              let winningSong = determineWinningSong(songTotals, undefined, availableSongs);
 
               if (winningSong === null) {
-                const maxTotal = Math.max(...availableSongs.map((s: any) => songTotals[s]));
-                const tiedSongs = availableSongs.filter((s: any) => songTotals[s] === maxTotal);
-                winningSong = tiedSongs[Math.floor(Math.random() * tiedSongs.length)] as any;
+                const maxTotal = Math.max(...availableSongs.map((s: Song) => songTotals[s]));
+                const tiedSongs = availableSongs.filter((s: Song) => songTotals[s] === maxTotal);
+                winningSong = tiedSongs[Math.floor(Math.random() * tiedSongs.length)];
               }
 
               const deductions = calculateCurrencyDeductions(allBids, winningSong);
@@ -335,14 +342,13 @@ export async function POST(
           } else {
             // No zero bidders, skip to RESULTS
             const songTotals = calculateSongTotals(updatedRound1Bids);
-            const playerCount = updatedGame.players.length;
-            const availableSongs = playerCount === 3 ? ["A", "B"] : ["A", "B", "C"];
-            let winningSong = determineWinningSong(songTotals, undefined, availableSongs as any);
+            const availableSongs = getAvailableSongs(updatedGame);
+            let winningSong = determineWinningSong(songTotals, undefined, availableSongs);
 
             if (winningSong === null) {
-              const maxTotal = Math.max(...availableSongs.map((s: any) => songTotals[s]));
-              const tiedSongs = availableSongs.filter((s: any) => songTotals[s] === maxTotal);
-              winningSong = tiedSongs[Math.floor(Math.random() * tiedSongs.length)] as any;
+              const maxTotal = Math.max(...availableSongs.map((s: Song) => songTotals[s]));
+              const tiedSongs = availableSongs.filter((s: Song) => songTotals[s] === maxTotal);
+              winningSong = tiedSongs[Math.floor(Math.random() * tiedSongs.length)];
             }
 
             const deductions = calculateCurrencyDeductions(updatedRound1Bids, winningSong);
@@ -380,14 +386,13 @@ export async function POST(
         if (updatedGame.status === "ROUND2" && updatedRound2Bids.length === updatedRound1Bids.filter(b => b.amount === 0).length) {
           const allBids = updatedGame.bids;
           const songTotals = calculateSongTotals(allBids);
-          const playerCount = updatedGame.players.length;
-          const availableSongs = playerCount === 3 ? ["A", "B"] : ["A", "B", "C"];
-          let winningSong = determineWinningSong(songTotals, undefined, availableSongs as any);
+          const availableSongs = getAvailableSongs(updatedGame);
+          let winningSong = determineWinningSong(songTotals, undefined, availableSongs);
 
           if (winningSong === null) {
-            const maxTotal = Math.max(...availableSongs.map((s: any) => songTotals[s]));
-            const tiedSongs = availableSongs.filter((s: any) => songTotals[s] === maxTotal);
-            winningSong = tiedSongs[Math.floor(Math.random() * tiedSongs.length)] as any;
+            const maxTotal = Math.max(...availableSongs.map((s: Song) => songTotals[s]));
+            const tiedSongs = availableSongs.filter((s: Song) => songTotals[s] === maxTotal);
+            winningSong = tiedSongs[Math.floor(Math.random() * tiedSongs.length)];
           }
 
           const deductions = calculateCurrencyDeductions(allBids, winningSong);

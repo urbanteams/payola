@@ -2,8 +2,17 @@
 
 import React, { useState } from 'react';
 import { HexagonalMap } from './HexagonalMap';
-import type { MapLayout, InfluenceToken } from '@/lib/game/map-generator';
+import type { MapLayout } from '@/lib/game/map-generator';
 import type { EdgeId } from '@/lib/game/hex-grid';
+
+interface InfluenceToken {
+  edgeId: EdgeId;
+  playerId: string;
+  playerName?: string;
+  playerColor?: string | null;
+  tokenType: string;
+  orientation: string;
+}
 
 interface MapViewerProps {
   mapLayout: MapLayout;

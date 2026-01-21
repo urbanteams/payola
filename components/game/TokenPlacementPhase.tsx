@@ -6,8 +6,19 @@ import { HexagonalMap } from './HexagonalMap';
 import { TabViewSwitcher } from './TabViewSwitcher';
 import { Card, CardContent } from '@/components/ui/Card';
 import { deserializeMapLayout } from '@/lib/game/map-generator';
-import type { MapLayout, InfluenceToken } from '@/lib/game/map-generator';
-import type { VertexId } from '@/lib/game/hex-grid';
+import type { MapLayout } from '@/lib/game/map-generator';
+import type { VertexId, EdgeId } from '@/lib/game/hex-grid';
+
+interface InfluenceToken {
+  id: string;
+  edgeId: EdgeId;
+  playerId: string;
+  playerName: string;
+  playerColor: string | null;
+  tokenType: string;
+  orientation: string;
+  roundNumber: number;
+}
 
 interface Player {
   id: string;
@@ -26,6 +37,7 @@ interface TokenPlacementPhaseProps {
   turnOrderA: string[];
   turnOrderB: string[];
   turnOrderC: string[] | null;
+  turnOrderD: string[] | null;
   placementTimeout: string | null;
   tokens: Array<{
     id: string;
@@ -37,6 +49,7 @@ interface TokenPlacementPhaseProps {
     orientation: string;
     roundNumber: number;
   }>;
+  isFinalPlacement?: boolean;
   onTokenPlaced: () => void;
 }
 
@@ -50,8 +63,10 @@ export function TokenPlacementPhase({
   turnOrderA,
   turnOrderB,
   turnOrderC,
+  turnOrderD,
   placementTimeout: placementTimeoutStr,
   tokens: tokensData,
+  isFinalPlacement = false,
   onTokenPlaced,
 }: TokenPlacementPhaseProps) {
   const [currentView, setCurrentView] = useState<'game' | 'map'>('map');
@@ -74,11 +89,15 @@ export function TokenPlacementPhase({
     roundNumber: t.roundNumber,
   }));
 
-  // Calculate turn order based on winning song
+  // Calculate turn order based on winning song or final placement
   const getTurnOrder = (): string[] => {
+    // For FINAL_PLACEMENT, use turnOrderA which stores the money-based turn order
+    if (isFinalPlacement) return turnOrderA;
+
     if (winningSong === 'A') return turnOrderA;
     if (winningSong === 'B') return turnOrderB;
     if (winningSong === 'C' && turnOrderC) return turnOrderC;
+    if (winningSong === 'D' && turnOrderD) return turnOrderD;
     return [];
   };
 
@@ -87,6 +106,12 @@ export function TokenPlacementPhase({
   const currentTurnPlayer = players.find((p) => p.id === currentTurnPlayerId);
   const myPlayer = players.find((p) => p.isMe);
   const isMyTurn = myPlayer?.id === currentTurnPlayerId;
+
+  // Check if human player has any turns in this round
+  const humanHasNoTurns = turnOrder.length > 0 && !turnOrder.includes(myPlayer?.id || '');
+
+  // Check if all placements are complete (currentTurnIndex is beyond turn order)
+  const allPlacementsComplete = currentTurnIndex >= turnOrder.length;
 
   // Countdown timer
   useEffect(() => {
@@ -132,6 +157,11 @@ export function TokenPlacementPhase({
     }
   };
 
+  const handleContinue = async () => {
+    // Trigger a refresh to check for round advancement
+    onTokenPlaced();
+  };
+
   if (!mapLayout) {
     return (
       <Card>
@@ -157,6 +187,18 @@ export function TokenPlacementPhase({
 
       {currentView === 'map' ? (
         <>
+          {/* Header - Show Final Placement or Token Placement */}
+          {isFinalPlacement && (
+            <Card className="mb-4">
+              <CardContent className="py-6 text-center">
+                <h2 className="text-3xl font-bold text-gray-800 mb-2">🎯 Final Round</h2>
+                <p className="text-gray-600">
+                  Place remaining tokens based on money remaining. Players with more money place first.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Turn Indicator Card */}
           <Card>
             <CardContent className="py-6">
@@ -263,10 +305,14 @@ export function TokenPlacementPhase({
           {/* Game View - Show all players and their colors */}
           <Card>
             <CardContent className="py-6">
-              <h3 className="text-xl font-bold text-gray-800 mb-4">Token Placement in Progress</h3>
+              <h3 className="text-xl font-bold text-gray-800 mb-4">
+                {isFinalPlacement ? "Final Placement in Progress" : "Token Placement in Progress"}
+              </h3>
               <p className="text-gray-600 mb-4">
-                Players are placing Influence Tokens on the map based on the turn order from Song{' '}
-                {winningSong}.
+                {isFinalPlacement
+                  ? "Players are placing their final tokens based on remaining money (highest money places first)."
+                  : `Players are placing Influence Tokens on the map based on the turn order from Song ${winningSong}.`
+                }
               </p>
 
               <div className="space-y-3">

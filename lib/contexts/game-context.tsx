@@ -9,9 +9,11 @@ interface GameState {
     status: string;
     roundNumber: number;
     winningSong: string | null;
-    turnOrderA: string | null;
-    turnOrderB: string | null;
-    turnOrderC: string | null;
+    isPOTS: boolean;
+    turnOrderA: string[] | null;
+    turnOrderB: string[] | null;
+    turnOrderC: string[] | null;
+    turnOrderD: string[] | null;
     mapType: string | null;
     mapLayout: string | null;
     highlightedEdges: string | null;

@@ -4,8 +4,8 @@
  * Handles vertex selection, placement validation, and immediate rewards
  */
 
-import { EdgeId, parseEdgeId } from './hex-grid';
-import { MapLayout, HexTile, HexCoordinate } from './map-generator';
+import { EdgeId, parseEdgeId, HexCoordinate } from './hex-grid';
+import { MapLayout, HexTile } from './map-generator';
 import { getSongImplications, parseTurnOrder } from './song-implications';
 
 export interface PlacementTurn {

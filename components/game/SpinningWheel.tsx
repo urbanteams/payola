@@ -4,14 +4,23 @@ import React, { useState, useEffect } from "react";
 import { Card, CardHeader, CardContent } from "@/components/ui/Card";
 
 interface SpinningWheelProps {
-  winner: "A" | "B" | "C";
-  onWinnerSelected: (winner: "A" | "B" | "C") => void;
-  availableSongs?: ("A" | "B" | "C")[];
+  winner: "A" | "B" | "C" | "D";
+  onWinnerSelected: (winner: "A" | "B" | "C" | "D") => void;
+  availableSongs?: ("A" | "B" | "C" | "D")[];
 }
+
+// Define colors for each song
+const SONG_COLORS = {
+  A: "#3B82F6", // Blue
+  B: "#10B981", // Green
+  C: "#EF4444", // Red
+  D: "#8B5CF6", // Purple
+};
 
 export function SpinningWheel({ winner, onWinnerSelected, availableSongs = ["A", "B", "C"] }: SpinningWheelProps) {
   const [rotation, setRotation] = useState(0);
-  const [isSpinning, setIsSpinning] = useState(false);
+  const [isSpinning, setIsSpinning] = useState(true);
+  const [showWinner, setShowWinner] = useState(false);
 
   useEffect(() => {
     // Start spinning after a short delay
@@ -23,36 +32,167 @@ export function SpinningWheel({ winner, onWinnerSelected, availableSongs = ["A",
   }, []);
 
   const spinWheel = () => {
-    setIsSpinning(true);
-
     // Use the predetermined winner from server
     const winnerIndex = availableSongs.indexOf(winner);
 
     // Calculate final rotation based on number of sections
-    // For 2 sections: A: 0-180, B: 180-360 (centers: 90°, 270°)
-    // For 3 sections: A: 0-120, B: 120-240, C: 240-360 (centers: 60°, 180°, 300°)
+    // The pointer is at the top (0 degrees). Section centers are at:
+    // For 2 sections: 90° (right), 270° (left)
+    // For 3 sections: 60°, 180°, 300°
+    // For 4 sections: 45°, 135°, 225°, 315°
     let sectionCenters: number[];
     if (availableSongs.length === 2) {
-      sectionCenters = [90, 270]; // degrees for A, B
+      sectionCenters = [90, 270];
+    } else if (availableSongs.length === 3) {
+      sectionCenters = [60, 180, 300];
     } else {
-      sectionCenters = [60, 180, 300]; // degrees for A, B, C
+      sectionCenters = [45, 135, 225, 315];
     }
-    const targetAngle = sectionCenters[winnerIndex];
+    const sectionCenter = sectionCenters[winnerIndex];
 
-    // Spin multiple times (always 6 full rotations for consistency) + land on target
+    // To bring the section center to the top (0 degrees), we need to rotate by (360 - sectionCenter)
+    // Plus 6 full rotations for the spinning effect
     const fullRotations = 6;
-    const finalRotation = fullRotations * 360 + targetAngle;
+    const finalRotation = fullRotations * 360 + (360 - sectionCenter);
 
     setRotation(finalRotation);
 
-    // After animation completes, notify parent
+    // After animation completes, show winner and notify parent
     setTimeout(() => {
       setIsSpinning(false);
-      onWinnerSelected(winner);
+      setShowWinner(true);
+      // Wait a bit before notifying parent to show the winner
+      setTimeout(() => {
+        onWinnerSelected(winner);
+      }, 1500);
     }, 4000); // 4 second animation
   };
 
-  const tieTitle = availableSongs.length === 2 ? "Two-Way Tie!" : "Three-Way Tie!";
+  const tieTitle =
+    availableSongs.length === 2 ? "Two-Way Tie!" :
+    availableSongs.length === 3 ? "Three-Way Tie!" :
+    "Four-Way Tie!";
+
+  // Helper to render wheel sections dynamically
+  const renderWheel = () => {
+    const numSongs = availableSongs.length;
+
+    if (numSongs === 2) {
+      // Two sections: each 180 degrees
+      const songs = availableSongs;
+      return (
+        <>
+          {/* First song section (0-180 degrees) - Right half */}
+          <path
+            d="M 100 100 L 100 0 A 100 100 0 0 1 100 200 Z"
+            fill={SONG_COLORS[songs[0]]}
+            stroke="#fff"
+            strokeWidth="2"
+          />
+          {/* Second song section (180-360 degrees) - Left half */}
+          <path
+            d="M 100 100 L 100 200 A 100 100 0 0 1 100 0 Z"
+            fill={SONG_COLORS[songs[1]]}
+            stroke="#fff"
+            strokeWidth="2"
+          />
+          {/* Labels - positioned within their sections, off the center line */}
+          <text x="150" y="100" textAnchor="middle" fill="white" fontSize="32" fontWeight="bold">
+            {songs[0]}
+          </text>
+          <text x="50" y="100" textAnchor="middle" fill="white" fontSize="32" fontWeight="bold">
+            {songs[1]}
+          </text>
+        </>
+      );
+    } else if (numSongs === 3) {
+      // Three sections: each 120 degrees
+      const songs = availableSongs;
+      return (
+        <>
+          {/* First song section (0-120 degrees) - Top section */}
+          <path
+            d="M 100 100 L 100 0 A 100 100 0 0 1 186.6 150 Z"
+            fill={SONG_COLORS[songs[0]]}
+            stroke="#fff"
+            strokeWidth="2"
+          />
+          {/* Second song section (120-240 degrees) - Bottom-right section */}
+          <path
+            d="M 100 100 L 186.6 150 A 100 100 0 0 1 13.4 150 Z"
+            fill={SONG_COLORS[songs[1]]}
+            stroke="#fff"
+            strokeWidth="2"
+          />
+          {/* Third song section (240-360 degrees) - Bottom-left section */}
+          <path
+            d="M 100 100 L 13.4 150 A 100 100 0 0 1 100 0 Z"
+            fill={SONG_COLORS[songs[2]]}
+            stroke="#fff"
+            strokeWidth="2"
+          />
+          {/* Labels - positioned within their sections, off the center lines */}
+          <text x="145" y="70" textAnchor="middle" fill="white" fontSize="32" fontWeight="bold">
+            {songs[0]}
+          </text>
+          <text x="155" y="135" textAnchor="middle" fill="white" fontSize="32" fontWeight="bold">
+            {songs[1]}
+          </text>
+          <text x="45" y="135" textAnchor="middle" fill="white" fontSize="32" fontWeight="bold">
+            {songs[2]}
+          </text>
+        </>
+      );
+    } else {
+      // Four sections: each 90 degrees
+      const songs = availableSongs;
+      return (
+        <>
+          {/* First song section (0-90 degrees) */}
+          <path
+            d="M 100 100 L 100 0 A 100 100 0 0 1 200 100 Z"
+            fill={SONG_COLORS[songs[0]]}
+            stroke="#fff"
+            strokeWidth="2"
+          />
+          {/* Second song section (90-180 degrees) */}
+          <path
+            d="M 100 100 L 200 100 A 100 100 0 0 1 100 200 Z"
+            fill={SONG_COLORS[songs[1]]}
+            stroke="#fff"
+            strokeWidth="2"
+          />
+          {/* Third song section (180-270 degrees) */}
+          <path
+            d="M 100 100 L 100 200 A 100 100 0 0 1 0 100 Z"
+            fill={SONG_COLORS[songs[2]]}
+            stroke="#fff"
+            strokeWidth="2"
+          />
+          {/* Fourth song section (270-360 degrees) */}
+          <path
+            d="M 100 100 L 0 100 A 100 100 0 0 1 100 0 Z"
+            fill={SONG_COLORS[songs[3]]}
+            stroke="#fff"
+            strokeWidth="2"
+          />
+          {/* Labels - positioned within their sections */}
+          <text x="145" y="55" textAnchor="middle" fill="white" fontSize="32" fontWeight="bold">
+            {songs[0]}
+          </text>
+          <text x="145" y="155" textAnchor="middle" fill="white" fontSize="32" fontWeight="bold">
+            {songs[1]}
+          </text>
+          <text x="55" y="155" textAnchor="middle" fill="white" fontSize="32" fontWeight="bold">
+            {songs[2]}
+          </text>
+          <text x="55" y="55" textAnchor="middle" fill="white" fontSize="32" fontWeight="bold">
+            {songs[3]}
+          </text>
+        </>
+      );
+    }
+  };
 
   return (
     <Card>
@@ -76,65 +216,7 @@ export function SpinningWheel({ winner, onWinnerSelected, availableSongs = ["A",
                 transform: `rotate(${rotation}deg)`,
               }}
             >
-              {availableSongs.length === 2 ? (
-                <>
-                  {/* Song A section (0-180 degrees) - Blue */}
-                  <path
-                    d="M 100 100 L 100 0 A 100 100 0 0 1 100 200 Z"
-                    fill="#3B82F6"
-                    stroke="#fff"
-                    strokeWidth="2"
-                  />
-                  {/* Song B section (180-360 degrees) - Green */}
-                  <path
-                    d="M 100 100 L 100 200 A 100 100 0 0 1 100 0 Z"
-                    fill="#10B981"
-                    stroke="#fff"
-                    strokeWidth="2"
-                  />
-                  {/* Labels */}
-                  <text x="100" y="70" textAnchor="middle" fill="white" fontSize="32" fontWeight="bold">
-                    A
-                  </text>
-                  <text x="100" y="150" textAnchor="middle" fill="white" fontSize="32" fontWeight="bold">
-                    B
-                  </text>
-                </>
-              ) : (
-                <>
-                  {/* Song A section (0-120 degrees) - Blue */}
-                  <path
-                    d="M 100 100 L 100 0 A 100 100 0 0 1 186.6 150 Z"
-                    fill="#3B82F6"
-                    stroke="#fff"
-                    strokeWidth="2"
-                  />
-                  {/* Song B section (120-240 degrees) - Green */}
-                  <path
-                    d="M 100 100 L 186.6 150 A 100 100 0 0 1 13.4 150 Z"
-                    fill="#10B981"
-                    stroke="#fff"
-                    strokeWidth="2"
-                  />
-                  {/* Song C section (240-360 degrees) - Red */}
-                  <path
-                    d="M 100 100 L 13.4 150 A 100 100 0 0 1 100 0 Z"
-                    fill="#EF4444"
-                    stroke="#fff"
-                    strokeWidth="2"
-                  />
-                  {/* Labels */}
-                  <text x="100" y="50" textAnchor="middle" fill="white" fontSize="32" fontWeight="bold">
-                    A
-                  </text>
-                  <text x="145" y="135" textAnchor="middle" fill="white" fontSize="32" fontWeight="bold">
-                    B
-                  </text>
-                  <text x="55" y="135" textAnchor="middle" fill="white" fontSize="32" fontWeight="bold">
-                    C
-                  </text>
-                </>
-              )}
+              {renderWheel()}
 
               {/* Center circle */}
               <circle cx="100" cy="100" r="15" fill="#1F2937" />
@@ -147,14 +229,14 @@ export function SpinningWheel({ winner, onWinnerSelected, availableSongs = ["A",
               <p className="text-xl font-semibold text-gray-700 animate-pulse">
                 Spinning...
               </p>
-            ) : (
+            ) : showWinner ? (
               <div>
                 <p className="text-2xl font-bold text-gray-800 mb-2">
                   Winner: Song {winner}!
                 </p>
                 <p className="text-sm text-gray-600">Loading results...</p>
               </div>
-            )}
+            ) : null}
           </div>
         </div>
       </CardContent>

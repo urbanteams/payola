@@ -44,14 +44,15 @@ export async function POST(request: NextRequest) {
     }
 
     // For AI games, generate map based on selected player count
+    // Use POTS mode for all AI games
     const mapLayout = generateMapLayout(playerCount);
-    const totalRounds = getTotalRounds(playerCount);
+    const totalRounds = getTotalRounds(playerCount, true); // usePOTS = true
 
-    // Generate turn orders for the first round (these are index strings like "012012")
-    const implications = getSongImplications(playerCount);
+    // Generate turn orders for the first round using POTS patterns
+    const implications = getSongImplications(playerCount, undefined, true); // usePOTS = true
 
-    // Generate initial highlighted edges (6 for 3 players)
-    const tokensPerRound = playerCount <= 4 ? 6 : 8;
+    // Generate initial highlighted edges based on player count (POTS mode)
+    const tokensPerRound = implications.tokensPerRound;
     const highlightedEdges = selectRandomVertices(mapLayout, [], tokensPerRound);
 
     const game = await prisma.game.create({
@@ -62,6 +63,7 @@ export async function POST(request: NextRequest) {
         mapType: mapLayout.mapType,
         mapLayout: serializeMapLayout(mapLayout),
         totalRounds,
+        isPOTS: true, // All AI games now use POTS mode
         highlightedEdges: JSON.stringify(highlightedEdges), // Store for later use
         // Turn orders will be set after players are created
       },
@@ -82,12 +84,13 @@ export async function POST(request: NextRequest) {
 
     // Create AI players (playerCount - 1 bots)
     const aiCount = playerCount - 1;
+    const aiNames = ["Bailey", "Karthik", "Grace", "Roberto", "Tricks"];
     const aiPlayers = [];
     for (let i = 0; i < aiCount; i++) {
       const aiPlayer = await prisma.player.create({
         data: {
           gameId: game.id,
-          name: `AI Bot ${i + 1}`,
+          name: aiNames[i],
           sessionToken: generateSessionToken(), // AI still needs a token but won't use it
           currencyBalance: 30,
           isAI: true,
@@ -113,6 +116,7 @@ export async function POST(request: NextRequest) {
         turnOrderA: JSON.stringify(convertIndicesToPlayerIds(implications.songA)),
         turnOrderB: JSON.stringify(convertIndicesToPlayerIds(implications.songB)),
         turnOrderC: implications.songC ? JSON.stringify(convertIndicesToPlayerIds(implications.songC)) : null,
+        turnOrderD: implications.songD ? JSON.stringify(convertIndicesToPlayerIds(implications.songD)) : null,
       },
     });
 

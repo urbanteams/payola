@@ -176,20 +176,20 @@ export function OrientationModal({
         </div>
 
         {/* Special Hex Highlights */}
-        {adjacentHexes.some((hex) => hex.type === 'lightning' || hex.type === 'dollar') && (
+        {adjacentHexes.some((hex) => hex.type === 'buzzHub' || hex.type === 'moneyHub') && (
           <div className="bg-yellow-900 border border-yellow-700 p-4 rounded-lg mb-4">
             <h4 className="font-bold mb-2 flex items-center gap-2">
               ⚠️ Immediate Reward Available!
             </h4>
             {adjacentHexes
-              .filter((hex) => hex.type === 'lightning' || hex.type === 'dollar')
+              .filter((hex) => hex.type === 'buzzHub' || hex.type === 'moneyHub')
               .map((hex) => (
                 <p key={hex.id} className="text-sm text-yellow-100">
-                  {hex.type === 'lightning' && (
-                    <>⚡ Lightning hex: You'll gain Victory Points equal to the influence you place!</>
+                  {hex.type === 'buzzHub' && (
+                    <>⚡ Buzz Hub hex: You'll gain Victory Points equal to the influence you place!</>
                   )}
-                  {hex.type === 'dollar' && (
-                    <>💵 Dollar hex: You'll gain Currency equal to the influence you place!</>
+                  {hex.type === 'moneyHub' && (
+                    <>💵 Money Hub hex: You'll gain Currency equal to the influence you place!</>
                   )}
                 </p>
               ))}

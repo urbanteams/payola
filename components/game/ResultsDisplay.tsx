@@ -24,11 +24,14 @@ interface ResultsDisplayProps {
   onNextRound: () => void;
   onFinishGame: () => void;
   isAdvancing: boolean;
-  forcedWinner?: "A" | "B" | "C" | null;
+  forcedWinner?: "A" | "B" | "C" | "D" | null;
   players?: Player[]; // Player list
   turnOrderA?: string[] | null; // Array of player IDs
   turnOrderB?: string[] | null; // Array of player IDs
   turnOrderC?: string[] | null; // Array of player IDs
+  turnOrderD?: string[] | null; // Array of player IDs
+  isPOTS?: boolean; // Is POTS mode
+  currentRound?: number; // Current round number
 }
 
 export function ResultsDisplay({
@@ -40,17 +43,28 @@ export function ResultsDisplay({
   players,
   turnOrderA,
   turnOrderB,
-  turnOrderC
+  turnOrderC,
+  turnOrderD,
+  isPOTS = false,
+  currentRound = 1
 }: ResultsDisplayProps) {
   const songTotals = calculateSongTotals(bids);
   const winningSong = determineWinningSong(songTotals, forcedWinner || undefined);
-  const [countdown, setCountdown] = useState(7);
+  const [countdown, setCountdown] = useState(3);
+
+  // Determine which songs are available based on which turn orders exist
+  const availableSongs: Array<"A" | "B" | "C" | "D"> = [];
+  if (turnOrderA) availableSongs.push("A");
+  if (turnOrderB) availableSongs.push("B");
+  if (turnOrderC) availableSongs.push("C");
+  if (turnOrderD) availableSongs.push("D");
 
   // Get the turn order for the winning song
   let winningTurnOrder: string[] | null = null;
   if (winningSong === "A") winningTurnOrder = turnOrderA || null;
   if (winningSong === "B") winningTurnOrder = turnOrderB || null;
   if (winningSong === "C") winningTurnOrder = turnOrderC || null;
+  if (winningSong === "D") winningTurnOrder = turnOrderD || null;
 
   // Convert turn order (player IDs) to player names with bold for current player
   const winningImplicationDisplay = (() => {
@@ -95,7 +109,43 @@ export function ResultsDisplay({
       case "A": return "blue";
       case "B": return "green";
       case "C": return "red";
+      case "D": return "orange";
       default: return "gray";
+    }
+  };
+
+  const getSongColorClasses = (song: string, isWinner: boolean = false) => {
+    switch (song) {
+      case "A":
+        return {
+          bg: isWinner ? "bg-blue-100" : "bg-gray-50",
+          border: isWinner ? "border-blue-500" : "border-gray-300",
+          text: "text-blue-600"
+        };
+      case "B":
+        return {
+          bg: isWinner ? "bg-green-100" : "bg-gray-50",
+          border: isWinner ? "border-green-500" : "border-gray-300",
+          text: "text-green-600"
+        };
+      case "C":
+        return {
+          bg: isWinner ? "bg-red-100" : "bg-gray-50",
+          border: isWinner ? "border-red-500" : "border-gray-300",
+          text: "text-red-600"
+        };
+      case "D":
+        return {
+          bg: isWinner ? "bg-orange-100" : "bg-gray-50",
+          border: isWinner ? "border-orange-500" : "border-gray-300",
+          text: "text-orange-600"
+        };
+      default:
+        return {
+          bg: "bg-gray-50",
+          border: "border-gray-300",
+          text: "text-gray-600"
+        };
     }
   };
 
@@ -126,25 +176,25 @@ export function ResultsDisplay({
         {/* Song Totals */}
         <div className="mb-8">
           <h3 className="text-xl font-semibold text-gray-700 mb-4 text-center">Total Bids by Song</h3>
-          <div className={`grid gap-4 ${players && players.length === 3 ? 'grid-cols-2' : 'grid-cols-3'}`}>
-            {["A", "B", "C"].filter(song => {
-              // Filter out Song C for 3-player games
-              if (song === "C" && players && players.length === 3) return false;
-              return true;
-            }).map((song) => {
-              const total = songTotals[song as "A" | "B" | "C"];
+          <div className={`grid gap-4 ${
+            availableSongs.length === 2 ? 'grid-cols-2' :
+            availableSongs.length === 3 ? 'grid-cols-3' :
+            'grid-cols-4'
+          }`}>
+            {availableSongs.map((song) => {
+              const total = songTotals[song];
               const isWinner = song === winningSong;
-              const color = getSongColor(song);
+              const colorClasses = getSongColorClasses(song, isWinner);
 
               return (
                 <div
                   key={song}
                   className={`
                     border-4 rounded-lg p-6 text-center transition-all
-                    ${isWinner ? `bg-${color}-100 border-${color}-500` : "bg-gray-50 border-gray-300"}
+                    ${colorClasses.bg} ${colorClasses.border}
                   `}
                 >
-                  <div className={`text-5xl font-bold mb-2 text-${color}-600`}>{song}</div>
+                  <div className={`text-5xl font-bold mb-2 ${colorClasses.text}`}>{song}</div>
                   <div className="text-3xl font-bold text-gray-800">${total}</div>
                   {isWinner && (
                     <div className="mt-2 bg-yellow-400 text-yellow-900 text-xs font-bold py-1 px-3 rounded-full inline-block">
@@ -162,7 +212,7 @@ export function ResultsDisplay({
           <h3 className="text-xl font-semibold text-gray-700 mb-3">All Bids</h3>
           <div className="space-y-2">
             {bids.filter(bid => bid.amount > 0).map((bid, index) => {
-              const color = getSongColor(bid.song);
+              const colorClasses = getSongColorClasses(bid.song);
               const paidBid = (bid.round === 2) || (bid.round === 1 && bid.song === winningSong);
 
               return (
@@ -184,7 +234,7 @@ export function ResultsDisplay({
                   </div>
 
                   <div className="flex items-center space-x-4">
-                    <div className={`text-2xl font-bold text-${color}-600`}>
+                    <div className={`text-2xl font-bold ${colorClasses.text}`}>
                       Song {bid.song}
                     </div>
                     <div className="text-right">
@@ -223,7 +273,12 @@ export function ResultsDisplay({
             disabled={isAdvancing || countdown > 0}
             className="w-full"
           >
-            {isAdvancing ? "Advancing to Placement..." : countdown > 0 ? `Advance to Placement (${countdown}s)` : "Advance to Placement"}
+            {isAdvancing
+              ? (isPOTS && currentRound === 10 ? "Advancing to Final Placement..." : "Advancing to Placement...")
+              : countdown > 0
+                ? (isPOTS && currentRound === 10 ? `Advance to Final Placement (${countdown}s)` : `Advance to Placement (${countdown}s)`)
+                : (isPOTS && currentRound === 10 ? "Advance to Final Placement" : "Advance to Placement")
+            }
           </Button>
         </div>
       </CardContent>
