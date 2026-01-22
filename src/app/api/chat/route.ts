@@ -1,6 +1,6 @@
 import type { FileNode } from "@/lib/file-system";
 import { VirtualFileSystem } from "@/lib/file-system";
-import { streamText } from "ai";
+import { streamText, appendResponseMessages } from "ai";
 import { buildStrReplaceTool } from "@/lib/tools/str-replace";
 import { buildFileManagerTool } from "@/lib/tools/file-manager";
 import { prisma } from "@/lib/prisma";
@@ -32,7 +32,7 @@ export async function POST(req: Request) {
   // Use fewer steps for mock provider to prevent repetition
   const isMockProvider = !process.env.ANTHROPIC_API_KEY;
   const result = streamText({
-    model: model as any, // Add type cast to bypass TypeScript error
+    model,
     messages,
     maxTokens: 10_000,
     maxSteps: isMockProvider ? 4 : 40,
