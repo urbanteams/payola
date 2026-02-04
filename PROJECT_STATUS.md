@@ -29,7 +29,8 @@ Simplified game creation by making B variants (multi-map mode with card-based bi
    - AI games: Auto-select variant based on player count
    - Lobby games: Auto-select variant when game starts
    - Starting currency: $20 (down from $30)
-   - Card inventory: All players start with 8 cards (2×$1, 2×$2, 2×$3, 2×$4)
+   - Card inventory: All players start with 5 cards (1×$1, 1×$2, 1×$3, 1×$4, 1×$5)
+   - Second map: Players receive 5 additional cards (1×$1, 1×$2, 1×$3, 1×$4, 1×$5) when second map begins
 
 4. **Technical Improvements:**
    - Added `postinstall` script to regenerate Prisma Client automatically
@@ -49,6 +50,21 @@ Simplified game creation by making B variants (multi-map mode with card-based bi
 - Successfully deployed to Vercel
 - All builds passing with PostgreSQL database
 
+### Minor UI Fix: Player Name Word-Wrapping ✅
+
+**Issue**: Player names in song implications were breaking mid-word across lines
+- Example: "Karthik" could display as "Karthi" on one line and "k" on the next line
+
+**Fix**: Added `whitespace-nowrap` CSS class to prevent mid-word breaks
+- Names now wrap as complete units between arrows
+- Multiple rows still supported, but words never split
+
+**Files Modified:**
+- `components/game/SongSelector.tsx:75-79` - Added `whitespace-nowrap` to name and arrow spans
+- `components/game/ResultsDisplay.tsx:86-91` - Same fix for results display
+
+**Result**: Player names always display as complete words, improving readability in song implications
+
 ---
 
 ## 📝 Session 10 Progress Summary (February 2, 2026)
@@ -61,7 +77,8 @@ Simplified game creation by making B variants (multi-map mode with card-based bi
 Implemented a complete card-based bidding system for 3-player multi-map games. Replaces currency with a fixed set of cards that players use to bid. Spent cards are permanently removed and visible to all players.
 
 **Key Features:**
-- **Starting Inventory:** Each player gets 2×$1, 2×$2, 2×$3, 2×$4 cards (total value: $20)
+- **Starting Inventory:** Each player gets 1×$1, 1×$2, 1×$3, 1×$4, 1×$5 cards (total value: $15)
+- **Second Map Cards:** When second map begins, each player receives additional 1×$1, 1×$2, 1×$3, 1×$4, 1×$5 cards (total: 10 cards)
 - **Round-Based Limits:**
   - Rounds 1-5 (First Map): Can use ONLY 1 card per bid
   - Rounds 6-10 (Second Map): Can use UP TO 2 cards per bid

@@ -8,6 +8,7 @@ import { selectRandomVertices } from "@/lib/game/token-placement-logic";
 import { processAllAITokenPlacements } from "@/lib/game/ai-token-placement";
 import { selectNPCEdges, createNPCTokens } from "@/lib/game/npc-tokens";
 import { calculateSymbolsCollected } from "@/lib/game/end-game-scoring";
+import { deserializeInventory, addCards, serializeInventory, SECOND_MAP_CARDS } from "@/lib/game/card-inventory";
 
 /**
  * Calculate rounds per map for Multi-Map mode based on player count and variant
@@ -274,6 +275,22 @@ export async function POST(
       // Generate highlighted edges for the second map
       const tokensPerRound = implications.tokensPerRound;
       const highlightedEdges = selectRandomVertices(secondMapLayout, [], tokensPerRound);
+
+      // Add cards to all players for second map (B variants only)
+      if (game.gameVariant && game.gameVariant.endsWith('B')) {
+        for (const player of game.players) {
+          if (player.cardInventory) {
+            const currentInventory = deserializeInventory(player.cardInventory);
+            const updatedInventory = addCards(currentInventory, SECOND_MAP_CARDS);
+            await prisma.player.update({
+              where: { id: player.id },
+              data: {
+                cardInventory: serializeInventory(updatedInventory),
+              },
+            });
+          }
+        }
+      }
 
       // Update game to second map
       await prisma.game.update({
