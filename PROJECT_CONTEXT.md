@@ -1,26 +1,38 @@
 # Payola Project Context & Session History
 
-Last Updated: January 21, 2026 (VS AI Mode Unified with POTS Patterns)
+Last Updated: February 4, 2026 (B Variants Now Default for All Games)
 
 ## Project Overview
 
 **Payola** is a digital companion app for a physical board game featuring multi-round blind bidding mechanics where players strategically bid on songs to influence outcomes.
 
+### Current Game System: B Variants (Multi-Map + Card-Based Bidding)
+
+**As of February 2026**, all games automatically use B variants based on player count. There is no variant selection UI - the appropriate variant is chosen automatically:
+
+- **3 Players**: 3B variant (NYC15 maps, 10 rounds, 2 maps of 5 rounds each)
+- **4 Players**: 4B variant (NYC20 maps, 10 rounds, 2 maps of 5 rounds each)
+- **5 Players**: 5B variant (NYC20 maps, 8 rounds, 2 maps of 4 rounds each)
+- **6 Players**: 6B variant (NYC30 maps, 10 rounds, 2 maps of 5 rounds each, with Classical Stars)
+
 ### Core Game Mechanics
 
-- **Starting Currency**: Each player begins with $30
+- **Starting Currency**: Each player begins with $20
+- **Card-Based Bidding**: Players use a fixed set of 8 cards (2×$1, 2×$2, 2×$3, 2×$4) instead of traditional currency
+- **Multi-Map Mode**: All games play on two sequential maps
 - **Songs**: Three options available each round - Song A, B, and C
 - **Two Bidding Phases per Round**:
-  - **Promise Phase**: All players bid simultaneously (can bid $0 to skip to Bribe Phase)
+  - **Promise Phase**: All players bid simultaneously using cards (can bid $0 to skip to Bribe Phase)
   - **Bribe Phase**: Only players who bid $0 in Promise Phase participate (must pay regardless of outcome)
-- **Winner Determination**: Song with highest total currency wins
+- **Winner Determination**: Song with highest total bid value wins
 - **Tie-Breaking Rules**:
   - 2-way tie → 3rd song wins
   - 3-way tie → random selection
 - **Payment Rules**:
-  - Promise Phase bidders: Only pay if they backed the winning song
-  - Bribe Phase bidders: Always pay regardless of outcome
-- **No Round Limit**: Game continues indefinitely until players choose to end it
+  - Promise Phase bidders: Only pay if they backed the winning song (cards permanently spent)
+  - Bribe Phase bidders: Always pay regardless of outcome (cards permanently spent)
+  - Spent cards are visible to all players
+- **Game Duration**: Fixed rounds based on variant (8-10 rounds total across 2 maps)
 
 ## Important Terminology Changes (January 2026)
 

@@ -1,12 +1,57 @@
 # Payola Hexagonal Map Feature - Project Status
 
-**Last Updated:** February 2, 2026 (Session 10 - 3B Card Variant Implementation)
-**Branch:** `mini`
-**Status:** Multi-Map Mode Complete + Card Variant System Implemented
+**Last Updated:** February 4, 2026 (B Variants Now Default - Merged to Master)
+**Branch:** `master`
+**Status:** B Variants Default for All Games + Multi-Map Mode + Card-Based Bidding
 
 ---
 
-## 📝 Session 10 Progress Summary (Most Recent)
+## 📝 Latest Changes (February 4, 2026)
+
+### B Variants Made Default for All Games ✅
+
+**Overview:**
+Simplified game creation by making B variants (multi-map mode with card-based bidding) the default and only option. Removed all variant selection UI. Games automatically use the appropriate B variant based on player count.
+
+**Key Changes:**
+1. **Automatic Variant Selection:**
+   - 3 players → 3B variant (NYC15, 10 rounds)
+   - 4 players → 4B variant (NYC20, 10 rounds)
+   - 5 players → 5B variant (NYC20, 8 rounds)
+   - 6 players → 6B variant (NYC30, 10 rounds, Classical Stars)
+
+2. **UI Simplification:**
+   - Removed "Multi-Map Mode (Experimental)" button from home page
+   - Removed variant selection UI (3A/3B/4B/5B/6A/6B buttons)
+   - All games now use multi-map mode by default
+
+3. **Game Creation Updates:**
+   - AI games: Auto-select variant based on player count
+   - Lobby games: Auto-select variant when game starts
+   - Starting currency: $20 (down from $30)
+   - Card inventory: All players start with 8 cards (2×$1, 2×$2, 2×$3, 2×$4)
+
+4. **Technical Improvements:**
+   - Added `postinstall` script to regenerate Prisma Client automatically
+   - Fixed TypeScript compilation errors from obsolete variant checks
+   - Cleaned up documentation and removed experimental status
+
+**Files Modified:**
+- `app/page.tsx` - Removed multi-map mode UI
+- `app/api/game/create-ai/route.ts` - Auto-select B variant for AI games
+- `app/api/game/create/route.ts` - Set multi-map mode for lobby games
+- `app/api/game/join/route.ts` - Initialize card inventory for joining players
+- `app/api/game/[gameId]/advance/route.ts` - Auto-select variant when lobby starts
+- `package.json` - Added postinstall script for Prisma generation
+
+**Migration to Production:**
+- Squash merged from `mini` branch to `master` on February 4, 2026
+- Successfully deployed to Vercel
+- All builds passing with PostgreSQL database
+
+---
+
+## 📝 Session 10 Progress Summary (February 2, 2026)
 
 **Work Completed in This Session:**
 
