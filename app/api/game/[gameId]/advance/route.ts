@@ -112,23 +112,13 @@ export async function POST(
       const implications = getSongImplications(playerCount, undefined, false, true, gameVariant); // useMultiMap = true
 
       // Find NPC player for Multi-Map mode (if exists)
-      // NOTE: NPC should NOT exist for 3A variant or 4-player games
       const npcPlayerForStart = game.players.find(p => p.name === 'NPC');
-
-      // Validate: 3A variant and 4-player should never have NPC
-      if (game.gameVariant === "3A" && npcPlayerForStart) {
-        console.error(`ERROR: 3A variant game has NPC player! This should not happen. GameId: ${gameId}`);
-      }
 
       // Convert turn order indices to player IDs
       const convertIndicesToPlayerIds = (indexString: string): string[] => {
         return indexString.split('').map(indexChar => {
-          // Map "X" to NPC player ID for 5-player Multi-Map mode only
+          // Map "X" to NPC player ID (not used in B variants)
           if (indexChar === 'X' || indexChar === 'x') {
-            // 3A variant and 4-player should never have 'X' in turn orders
-            if (game.gameVariant === "3A") {
-              throw new Error(`NPC marker 'X' found in turn order for 3A variant - this is invalid`);
-            }
             if (!npcPlayerForStart) {
               throw new Error('NPC player not found for Multi-Map mode');
             }
