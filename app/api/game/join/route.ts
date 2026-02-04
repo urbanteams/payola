@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { generateSessionToken, createSession } from "@/lib/auth";
+import { createInitialInventory, serializeInventory } from "@/lib/game/card-inventory";
 
 const PLAYER_COLORS = [
   '#FF6B6B', // Red
@@ -62,7 +63,8 @@ export async function POST(request: NextRequest) {
         gameId: game.id,
         name: playerName.trim(),
         sessionToken,
-        currencyBalance: 30,
+        currencyBalance: 20, // Multi-Map mode starts with $20
+        cardInventory: serializeInventory(createInitialInventory()), // All B variants use card-based bidding
         playerColor,
       },
     });

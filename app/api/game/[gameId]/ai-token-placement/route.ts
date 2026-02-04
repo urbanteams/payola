@@ -45,9 +45,10 @@ export async function POST(
     const currentTurnPlayerId = turnOrder[currentTurnIndex];
     const currentPlayer = game.players.find(p => p.id === currentTurnPlayerId);
 
-    // Check if current player is AI
-    if (!currentPlayer || !currentPlayer.isAI) {
-      return NextResponse.json({ success: true, message: 'Current player is not AI' });
+    // Check if current player is AI or NPC
+    const isNPCPlayer = currentPlayer?.name === 'NPC';
+    if (!currentPlayer || (!currentPlayer.isAI && !isNPCPlayer)) {
+      return NextResponse.json({ success: true, message: 'Current player is not AI or NPC' });
     }
 
     // Get existing tokens to avoid duplicates
@@ -72,8 +73,9 @@ export async function POST(
 
     // Select random edge, token type, and orientation
     const randomEdge = availableEdges[Math.floor(Math.random() * availableEdges.length)];
-    const randomTokenType = TOKEN_TYPES[Math.floor(Math.random() * TOKEN_TYPES.length)];
-    const randomOrientation = ORIENTATIONS[Math.floor(Math.random() * ORIENTATIONS.length)];
+    // For NPC players, always use blank (0/0) tokens
+    const randomTokenType = isNPCPlayer ? '0/0' : TOKEN_TYPES[Math.floor(Math.random() * TOKEN_TYPES.length)];
+    const randomOrientation = isNPCPlayer ? 'A' : ORIENTATIONS[Math.floor(Math.random() * ORIENTATIONS.length)];
 
     // Create token
     await prisma.influenceToken.create({
@@ -95,7 +97,7 @@ export async function POST(
       where: { id: gameId },
       data: {
         currentTurnIndex: nextTurnIndex,
-        placementTimeout: allTokensPlaced ? null : new Date(Date.now() + 60000),
+        placementTimeout: allTokensPlaced ? null : new Date(Date.now() + 90000),
       },
     });
 

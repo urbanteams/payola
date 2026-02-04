@@ -6,7 +6,7 @@
  * Also supports POTS mode with fixed implications
  */
 
-import { SONG_IMPLICATION_PATTERNS, SongImplicationPattern, POTS_PATTERN, POTS_PATTERN_4PLAYER, POTS_PATTERN_5PLAYER, POTS_PATTERN_6PLAYER } from './song-implications-data';
+import { SONG_IMPLICATION_PATTERNS, SongImplicationPattern, POTS_PATTERN, POTS_PATTERN_4PLAYER, POTS_PATTERN_5PLAYER, POTS_PATTERN_6PLAYER, MULTI_MAP_PATTERN_3PLAYER, MULTI_MAP_PATTERN_4PLAYER, MULTI_MAP_PATTERN_5PLAYER, MULTI_MAP_PATTERN_6PLAYER, MULTI_MAP_PATTERN_6A, MULTI_MAP_PATTERN_4B, MULTI_MAP_PATTERN_5B } from './song-implications-data';
 
 export interface SongImplications {
   songA: string; // Turn order string with player indices (e.g., "012012")
@@ -61,6 +61,8 @@ export function createRandomPlayerMapping(playerCount: number): Record<string, n
  * @param pattern Pattern string with letters (A, B, C...)
  * @param playerMapping Mapping from letters to player indices
  * @returns Turn order string with player indices (e.g., "012210")
+ *
+ * Note: "X" is preserved as-is in the output for NPC player representation
  */
 export function applyPlayerMapping(
   pattern: string,
@@ -69,6 +71,10 @@ export function applyPlayerMapping(
   return pattern
     .split('')
     .map((letter) => {
+      // Special handling for "X" (NPC player marker in 5-player Multi-Map mode)
+      if (letter === 'X' || letter === 'x') {
+        return 'X';
+      }
       const index = playerMapping[letter];
       if (index === undefined) {
         throw new Error(`Invalid letter in pattern: ${letter}`);
@@ -85,13 +91,50 @@ export function applyPlayerMapping(
  * @param playerCount Number of players in the game (3-6)
  * @param playerMapping Optional custom mapping from letters to player indices
  * @param usePOTS Whether to use POTS mode (fixed implications, 3-4 players)
+ * @param useMultiMap Whether to use Multi-Map mode (3 players only)
+ * @param gameVariant Optional game variant (e.g., "3A", "6A")
  * @returns Song implications object with turn orders
  */
 export function getSongImplications(
   playerCount: number,
   playerMapping?: Record<string, number>,
-  usePOTS?: boolean
+  usePOTS?: boolean,
+  useMultiMap?: boolean,
+  gameVariant?: string | null
 ): SongImplications {
+  // Use Multi-Map pattern if requested
+  if (useMultiMap) {
+    let pattern: SongImplicationPattern;
+
+    // Handle variants first
+    if (gameVariant === "4B" && playerCount === 4) {
+      pattern = MULTI_MAP_PATTERN_4B;
+    } else if (gameVariant === "5B" && playerCount === 5) {
+      pattern = MULTI_MAP_PATTERN_5B;
+    } else if ((gameVariant === "6A" || gameVariant === "6B") && playerCount === 6) {
+      pattern = MULTI_MAP_PATTERN_6A;
+    } else if (playerCount === 3) {
+      pattern = MULTI_MAP_PATTERN_3PLAYER;
+    } else if (playerCount === 4) {
+      pattern = MULTI_MAP_PATTERN_4PLAYER;
+    } else if (playerCount === 5) {
+      pattern = MULTI_MAP_PATTERN_5PLAYER;
+    } else if (playerCount === 6) {
+      pattern = MULTI_MAP_PATTERN_6PLAYER;
+    } else {
+      throw new Error('Multi-Map mode is only available for 3, 4, 5, and 6 player games');
+    }
+
+    const mapping = playerMapping || createRandomPlayerMapping(playerCount);
+    return {
+      songA: applyPlayerMapping(pattern.songA, mapping),
+      songB: applyPlayerMapping(pattern.songB, mapping),
+      songC: pattern.songC ? applyPlayerMapping(pattern.songC, mapping) : undefined,
+      songD: pattern.songD ? applyPlayerMapping(pattern.songD, mapping) : undefined,
+      tokensPerRound: pattern.tokensPerRound,
+    };
+  }
+
   // Use POTS pattern if requested
   if (usePOTS) {
     let pattern: SongImplicationPattern;
@@ -169,7 +212,26 @@ export function getTokensPerRound(playerCount: number): number {
 /**
  * Get total number of rounds for a player count
  */
-export function getTotalRounds(playerCount: number, usePOTS?: boolean): number {
+export function getTotalRounds(playerCount: number, usePOTS?: boolean, useMultiMap?: boolean, gameVariant?: string | null): number {
+  if (useMultiMap) {
+    // Handle variants first
+    if (gameVariant === "4B" && playerCount === 4) {
+      return MULTI_MAP_PATTERN_4B.totalRounds;
+    } else if (gameVariant === "5B" && playerCount === 5) {
+      return MULTI_MAP_PATTERN_5B.totalRounds;
+    } else if ((gameVariant === "6A" || gameVariant === "6B") && playerCount === 6) {
+      return MULTI_MAP_PATTERN_6A.totalRounds;
+    } else if (playerCount === 3) {
+      return MULTI_MAP_PATTERN_3PLAYER.totalRounds;
+    } else if (playerCount === 4) {
+      return MULTI_MAP_PATTERN_4PLAYER.totalRounds;
+    } else if (playerCount === 5) {
+      return MULTI_MAP_PATTERN_5PLAYER.totalRounds;
+    } else if (playerCount === 6) {
+      return MULTI_MAP_PATTERN_6PLAYER.totalRounds;
+    }
+    return 10; // Default for Multi-Map mode
+  }
   if (usePOTS) {
     if (playerCount === 3) {
       return POTS_PATTERN.totalRounds;

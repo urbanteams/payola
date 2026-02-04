@@ -3,6 +3,13 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { calculateSongTotals, determineWinningSong, calculateCurrencyDeductions, Song } from "@/lib/game/bidding-logic";
 import { processAIBids } from "@/lib/game/ai-bidding";
+import {
+  deserializeInventory,
+  serializeInventory,
+  validateCardSelection,
+  spendCards,
+  calculateTotalValue,
+} from "@/lib/game/card-inventory";
 
 // Helper function to determine available songs based on game turn orders
 function getAvailableSongs(game: { turnOrderA: string | null; turnOrderB: string | null; turnOrderC: string | null; turnOrderD?: string | null }): Song[] {
@@ -26,7 +33,7 @@ export async function POST(
 
     const { gameId } = await params;
     const body = await request.json();
-    const { song, amount } = body;
+    const { song, amount, cards } = body;
 
     // Validate input
     if (!song || !["A", "B", "C", "D"].includes(song)) {
@@ -74,12 +81,69 @@ export async function POST(
       );
     }
 
-    // Validate currency balance
-    if (amount > player.currencyBalance) {
-      return NextResponse.json(
-        { error: "Insufficient currency" },
-        { status: 400 }
-      );
+    // Check if this is a card-based variant (3B or 6B)
+    const is3BVariant = game.gameVariant === "3B" || game.gameVariant === "4B" || game.gameVariant === "5B" || game.gameVariant === "6B";
+
+    // Validate bid based on variant
+    if (is3BVariant) {
+      // 3B variant: Validate card selection
+      if (!player.cardInventory) {
+        return NextResponse.json(
+          { error: "Player card inventory not initialized" },
+          { status: 500 }
+        );
+      }
+
+      const inventory = deserializeInventory(player.cardInventory);
+      const selectedCards = cards || [];
+
+      // Validate card count based on round and variant
+      const totalRounds = game.totalRounds || 10;
+      const isFinalRound = game.roundNumber >= totalRounds;
+
+      let maxCards: number;
+      if (isFinalRound) {
+        maxCards = Infinity; // Final round: unlimited cards for all variants
+      } else if (game.gameVariant === "5B") {
+        // 5B variant: R1-4 = 1 card, R5-7 = 2 cards, R8 = unlimited
+        maxCards = game.roundNumber <= 4 ? 1 : 2;
+      } else {
+        // Default (3B, 4B, 6B): R1-5 = 1 card, R6+ = 2 cards, final = unlimited
+        maxCards = game.roundNumber <= 5 ? 1 : 2;
+      }
+
+      if (!isFinalRound && selectedCards.length > maxCards) {
+        return NextResponse.json(
+          { error: `You can only use ${maxCards} card${maxCards > 1 ? 's' : ''} per bid in round ${game.roundNumber}` },
+          { status: 400 }
+        );
+      }
+
+      // Validate cards are available
+      const validation = validateCardSelection(inventory, selectedCards);
+      if (!validation.valid) {
+        return NextResponse.json(
+          { error: validation.error || "Invalid card selection" },
+          { status: 400 }
+        );
+      }
+
+      // Verify amount matches card total
+      const cardTotal = calculateTotalValue(selectedCards);
+      if (cardTotal !== amount) {
+        return NextResponse.json(
+          { error: `Card total ($${cardTotal}) does not match bid amount ($${amount})` },
+          { status: 400 }
+        );
+      }
+    } else {
+      // Standard variant: Validate currency balance
+      if (amount > player.currencyBalance) {
+        return NextResponse.json(
+          { error: "Insufficient currency" },
+          { status: 400 }
+        );
+      }
     }
 
     // Determine which round we're in
@@ -104,7 +168,7 @@ export async function POST(
       );
     }
 
-    // Create bid
+    // Create bid with cards if 3B variant
     await prisma.bid.create({
       data: {
         gameId: game.id,
@@ -113,8 +177,12 @@ export async function POST(
         gameRound: game.roundNumber,
         song,
         amount,
+        promisedCards: is3BVariant && cards ? JSON.stringify(cards) : null,
       },
     });
+
+    // For card variants: Cards are NOT spent immediately in Round 2
+    // They will be spent when results are determined (all Round 2 bids spend their cards)
 
     // Check if all players have submitted Round 1 bids
     const newRound1Count = round1Bids.length + (biddingRound === 1 ? 1 : 0);
@@ -153,16 +221,39 @@ export async function POST(
           deductions: Array.from(deductions.entries()),
         });
 
-        // Update player balances
-        for (const [playerId, deduction] of deductions.entries()) {
-          const currentPlayer = game.players.find(p => p.id === playerId);
-          if (currentPlayer) {
-            await prisma.player.update({
-              where: { id: playerId },
-              data: {
-                currencyBalance: Math.max(0, currentPlayer.currencyBalance - deduction),
-              },
-            });
+        // Handle card spending for 3B variant or currency deductions for standard
+        if (is3BVariant) {
+          // Process promise phase cards - only spend if bid on winning song
+          for (const bid of allBids) {
+            const bidCards = bid.promisedCards ? JSON.parse(bid.promisedCards) : [];
+            if (bidCards.length > 0) {
+              const bidPlayer = game.players.find(p => p.id === bid.playerId);
+              if (bidPlayer && bidPlayer.cardInventory) {
+                const inventory = deserializeInventory(bidPlayer.cardInventory);
+                if (bid.song === winningSong) {
+                  // Song won: Spend the promised cards
+                  const updatedInventory = spendCards(inventory, bidCards);
+                  await prisma.player.update({
+                    where: { id: bid.playerId },
+                    data: { cardInventory: serializeInventory(updatedInventory) },
+                  });
+                }
+                // Song lost: Cards remain in inventory (do nothing)
+              }
+            }
+          }
+        } else {
+          // Standard variant: Update currency balances
+          for (const [playerId, deduction] of deductions.entries()) {
+            const currentPlayer = game.players.find(p => p.id === playerId);
+            if (currentPlayer) {
+              await prisma.player.update({
+                where: { id: playerId },
+                data: {
+                  currencyBalance: Math.max(0, currentPlayer.currencyBalance - deduction),
+                },
+              });
+            }
           }
         }
 
@@ -227,16 +318,64 @@ export async function POST(
           deductions: Array.from(deductions.entries()),
         });
 
-        // Update player balances
-        for (const [playerId, deduction] of deductions.entries()) {
-          const currentPlayer = game.players.find(p => p.id === playerId);
-          if (currentPlayer) {
-            await prisma.player.update({
-              where: { id: playerId },
-              data: {
-                currencyBalance: Math.max(0, currentPlayer.currencyBalance - deduction),
-              },
-            });
+        // Re-fetch game for 3B check
+        const gameForDeductions = await prisma.game.findUnique({
+          where: { id: game.id },
+          include: { players: true },
+        });
+        const is3BForDeductions = gameForDeductions?.gameVariant === "3B" || gameForDeductions?.gameVariant === "4B" || gameForDeductions?.gameVariant === "5B" || gameForDeductions?.gameVariant === "6B";
+
+        // Handle card spending for 3B variant or currency deductions for standard
+        if (is3BForDeductions && gameForDeductions) {
+          // Process promise phase cards (Round 1) - only spend if bid on winning song
+          const round1BidsWithCards = allCurrentRoundBids.filter(b => b.round === 1);
+          for (const bid of round1BidsWithCards) {
+            const bidCards = bid.promisedCards ? JSON.parse(bid.promisedCards) : [];
+            if (bidCards.length > 0) {
+              const bidPlayer = gameForDeductions.players.find(p => p.id === bid.playerId);
+              if (bidPlayer && bidPlayer.cardInventory) {
+                const inventory = deserializeInventory(bidPlayer.cardInventory);
+                if (bid.song === winningSong) {
+                  // Song won: Spend the promised cards
+                  const updatedInventory = spendCards(inventory, bidCards);
+                  await prisma.player.update({
+                    where: { id: bid.playerId },
+                    data: { cardInventory: serializeInventory(updatedInventory) },
+                  });
+                }
+                // Song lost: Cards remain in inventory (do nothing)
+              }
+            }
+          }
+          // Process bribe phase cards (Round 2) - ALL Round 2 bids spend their cards
+          const round2BidsWithCards = allCurrentRoundBids.filter(b => b.round === 2);
+          for (const bid of round2BidsWithCards) {
+            const bidCards = bid.promisedCards ? JSON.parse(bid.promisedCards) : [];
+            if (bidCards.length > 0) {
+              const bidPlayer = gameForDeductions.players.find(p => p.id === bid.playerId);
+              if (bidPlayer && bidPlayer.cardInventory) {
+                const inventory = deserializeInventory(bidPlayer.cardInventory);
+                // Bribe Phase: All cards are spent regardless of outcome
+                const updatedInventory = spendCards(inventory, bidCards);
+                await prisma.player.update({
+                  where: { id: bid.playerId },
+                  data: { cardInventory: serializeInventory(updatedInventory) },
+                });
+              }
+            }
+          }
+        } else {
+          // Standard variant: Update currency balances
+          for (const [playerId, deduction] of deductions.entries()) {
+            const currentPlayer = game.players.find(p => p.id === playerId);
+            if (currentPlayer) {
+              await prisma.player.update({
+                where: { id: playerId },
+                data: {
+                  currencyBalance: Math.max(0, currentPlayer.currencyBalance - deduction),
+                },
+              });
+            }
           }
         }
 
@@ -318,16 +457,59 @@ export async function POST(
                 deductions: Array.from(deductions.entries()),
               });
 
-              // Update player balances
-              for (const [playerId, deduction] of deductions.entries()) {
-                const currentPlayer = updatedGame.players.find(p => p.id === playerId);
-                if (currentPlayer) {
-                  await prisma.player.update({
-                    where: { id: playerId },
-                    data: {
-                      currencyBalance: Math.max(0, currentPlayer.currencyBalance - deduction),
-                    },
-                  });
+              const is3BAI = updatedGame.gameVariant === "3B" || updatedGame.gameVariant === "4B" || updatedGame.gameVariant === "5B" || updatedGame.gameVariant === "6B";
+
+              // Handle card spending for 3B variant or currency deductions for standard
+              if (is3BAI) {
+                // Process promise phase cards (Round 1) - only spend if bid on winning song
+                const round1BidsWithCards = allBids.filter(b => b.round === 1);
+                for (const bid of round1BidsWithCards) {
+                  const bidCards = bid.promisedCards ? JSON.parse(bid.promisedCards) : [];
+                  if (bidCards.length > 0) {
+                    const bidPlayer = updatedGame.players.find(p => p.id === bid.playerId);
+                    if (bidPlayer && bidPlayer.cardInventory) {
+                      const inventory = deserializeInventory(bidPlayer.cardInventory);
+                      if (bid.song === winningSong) {
+                        // Song won: Spend the promised cards
+                        const updatedInventory = spendCards(inventory, bidCards);
+                        await prisma.player.update({
+                          where: { id: bid.playerId },
+                          data: { cardInventory: serializeInventory(updatedInventory) },
+                        });
+                      }
+                      // Song lost: Cards remain in inventory (do nothing)
+                    }
+                  }
+                }
+                // Process bribe phase cards (Round 2) - ALL Round 2 bids spend their cards
+                const round2BidsWithCards = allBids.filter(b => b.round === 2);
+                for (const bid of round2BidsWithCards) {
+                  const bidCards = bid.promisedCards ? JSON.parse(bid.promisedCards) : [];
+                  if (bidCards.length > 0) {
+                    const bidPlayer = updatedGame.players.find(p => p.id === bid.playerId);
+                    if (bidPlayer && bidPlayer.cardInventory) {
+                      const inventory = deserializeInventory(bidPlayer.cardInventory);
+                      // Bribe Phase: All cards are spent regardless of outcome
+                      const updatedInventory = spendCards(inventory, bidCards);
+                      await prisma.player.update({
+                        where: { id: bid.playerId },
+                        data: { cardInventory: serializeInventory(updatedInventory) },
+                      });
+                    }
+                  }
+                }
+              } else {
+                // Standard variant: Update currency balances
+                for (const [playerId, deduction] of deductions.entries()) {
+                  const currentPlayer = updatedGame.players.find(p => p.id === playerId);
+                  if (currentPlayer) {
+                    await prisma.player.update({
+                      where: { id: playerId },
+                      data: {
+                        currencyBalance: Math.max(0, currentPlayer.currencyBalance - deduction),
+                      },
+                    });
+                  }
                 }
               }
 
@@ -359,16 +541,41 @@ export async function POST(
               deductions: Array.from(deductions.entries()),
             });
 
-            // Update player balances
-            for (const [playerId, deduction] of deductions.entries()) {
-              const currentPlayer = updatedGame.players.find(p => p.id === playerId);
-              if (currentPlayer) {
-                await prisma.player.update({
-                  where: { id: playerId },
-                  data: {
-                    currencyBalance: Math.max(0, currentPlayer.currencyBalance - deduction),
-                  },
-                });
+            const is3BAI2 = updatedGame.gameVariant === "3B" || updatedGame.gameVariant === "4B" || updatedGame.gameVariant === "5B" || updatedGame.gameVariant === "6B";
+
+            // Handle card spending for 3B variant or currency deductions for standard
+            if (is3BAI2) {
+              // Process promise phase cards - only spend if bid on winning song
+              for (const bid of updatedRound1Bids) {
+                const bidCards = bid.promisedCards ? JSON.parse(bid.promisedCards) : [];
+                if (bidCards.length > 0) {
+                  const bidPlayer = updatedGame.players.find(p => p.id === bid.playerId);
+                  if (bidPlayer && bidPlayer.cardInventory) {
+                    const inventory = deserializeInventory(bidPlayer.cardInventory);
+                    if (bid.song === winningSong) {
+                      // Song won: Spend the promised cards
+                      const updatedInventory = spendCards(inventory, bidCards);
+                      await prisma.player.update({
+                        where: { id: bid.playerId },
+                        data: { cardInventory: serializeInventory(updatedInventory) },
+                      });
+                    }
+                    // Song lost: Cards remain in inventory (do nothing)
+                  }
+                }
+              }
+            } else {
+              // Standard variant: Update currency balances
+              for (const [playerId, deduction] of deductions.entries()) {
+                const currentPlayer = updatedGame.players.find(p => p.id === playerId);
+                if (currentPlayer) {
+                  await prisma.player.update({
+                    where: { id: playerId },
+                    data: {
+                      currencyBalance: Math.max(0, currentPlayer.currencyBalance - deduction),
+                    },
+                  });
+                }
               }
             }
 
@@ -403,16 +610,59 @@ export async function POST(
             deductions: Array.from(deductions.entries()),
           });
 
-          // Update player balances
-          for (const [playerId, deduction] of deductions.entries()) {
-            const currentPlayer = updatedGame.players.find(p => p.id === playerId);
-            if (currentPlayer) {
-              await prisma.player.update({
-                where: { id: playerId },
-                data: {
-                  currencyBalance: Math.max(0, currentPlayer.currencyBalance - deduction),
-                },
-              });
+          const is3BAI3 = updatedGame.gameVariant === "3B" || updatedGame.gameVariant === "4B" || updatedGame.gameVariant === "5B" || updatedGame.gameVariant === "6B";
+
+          // Handle card spending for 3B variant or currency deductions for standard
+          if (is3BAI3) {
+            // Process promise phase cards (Round 1) - only spend if bid on winning song
+            const round1BidsWithCards = allBids.filter(b => b.round === 1);
+            for (const bid of round1BidsWithCards) {
+              const bidCards = bid.promisedCards ? JSON.parse(bid.promisedCards) : [];
+              if (bidCards.length > 0) {
+                const bidPlayer = updatedGame.players.find(p => p.id === bid.playerId);
+                if (bidPlayer && bidPlayer.cardInventory) {
+                  const inventory = deserializeInventory(bidPlayer.cardInventory);
+                  if (bid.song === winningSong) {
+                    // Song won: Spend the promised cards
+                    const updatedInventory = spendCards(inventory, bidCards);
+                    await prisma.player.update({
+                      where: { id: bid.playerId },
+                      data: { cardInventory: serializeInventory(updatedInventory) },
+                    });
+                  }
+                  // Song lost: Cards remain in inventory (do nothing)
+                }
+              }
+            }
+            // Process bribe phase cards (Round 2) - ALL Round 2 bids spend their cards
+            const round2BidsWithCards = allBids.filter(b => b.round === 2);
+            for (const bid of round2BidsWithCards) {
+              const bidCards = bid.promisedCards ? JSON.parse(bid.promisedCards) : [];
+              if (bidCards.length > 0) {
+                const bidPlayer = updatedGame.players.find(p => p.id === bid.playerId);
+                if (bidPlayer && bidPlayer.cardInventory) {
+                  const inventory = deserializeInventory(bidPlayer.cardInventory);
+                  // Bribe Phase: All cards are spent regardless of outcome
+                  const updatedInventory = spendCards(inventory, bidCards);
+                  await prisma.player.update({
+                    where: { id: bid.playerId },
+                    data: { cardInventory: serializeInventory(updatedInventory) },
+                  });
+                }
+              }
+            }
+          } else {
+            // Standard variant: Update currency balances
+            for (const [playerId, deduction] of deductions.entries()) {
+              const currentPlayer = updatedGame.players.find(p => p.id === playerId);
+              if (currentPlayer) {
+                await prisma.player.update({
+                  where: { id: playerId },
+                  data: {
+                    currencyBalance: Math.max(0, currentPlayer.currencyBalance - deduction),
+                  },
+                });
+              }
             }
           }
 

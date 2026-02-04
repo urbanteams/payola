@@ -127,7 +127,7 @@ export default function Home() {
         <CardHeader>
           <div className="text-center">
             <h1 className="text-5xl font-bold text-gray-800 mb-2">Payola</h1>
-            <p className="text-gray-600">Strategic bidding game</p>
+            <p className="text-gray-600">Control the Airwaves</p>
           </div>
         </CardHeader>
         <CardContent>
@@ -233,10 +233,16 @@ export default function Home() {
               )}
 
               <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
-                <p className="text-sm text-purple-800">
+                <p className="text-sm text-purple-800 mb-2">
                   <strong>VS AI Mode:</strong> Play against {aiPlayerCount - 1} AI opponent{aiPlayerCount > 2 ? 's' : ''} in a {aiPlayerCount}-player game.
                   AI players make strategic bids automatically.
                 </p>
+                <ul className="text-xs text-purple-700 space-y-1">
+                  <li>• Multi-Map mode: Play on two maps</li>
+                  <li>• Card-based bidding system ({aiPlayerCount === 5 ? '8 total rounds' : '10 total rounds'})</li>
+                  <li>• Start with 8 bidding cards (2×$1, 2×$2, 2×$3, 2×$4)</li>
+                  {aiPlayerCount === 6 && <li>• Includes Classical Star collectibles</li>}
+                </ul>
               </div>
 
               <Button onClick={handleCreateAIGame} disabled={loading} className="w-full bg-purple-600 hover:bg-purple-700 text-white">

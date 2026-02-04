@@ -21,6 +21,8 @@ interface RoundTransitionMapViewProps {
   highlightedEdges: EdgeId[];
   roundNumber: number;
   onContinue: () => void;
+  isMultiMap?: boolean;
+  totalRounds?: number;
 }
 
 export function RoundTransitionMapView({
@@ -29,16 +31,29 @@ export function RoundTransitionMapView({
   highlightedEdges,
   roundNumber,
   onContinue,
+  isMultiMap,
+  totalRounds,
 }: RoundTransitionMapViewProps) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-50 py-8 px-4">
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-800 mb-2">Round {roundNumber} Starting</h1>
+          <h1 className="text-4xl font-bold text-gray-800 mb-2">
+            Round {isMultiMap && totalRounds ? `${roundNumber}/${totalRounds}` : roundNumber} Starting
+          </h1>
           <p className="text-gray-600">
             New token placement spots have been highlighted on the map
           </p>
+        </div>
+
+        <div className="text-center mb-6">
+          <button
+            onClick={onContinue}
+            className="px-8 py-4 rounded-lg font-semibold text-lg transition-all bg-blue-600 text-white hover:bg-blue-700 cursor-pointer"
+          >
+            Continue to Bidding
+          </button>
         </div>
 
         <Card className="mb-6">
@@ -50,15 +65,6 @@ export function RoundTransitionMapView({
             />
           </CardContent>
         </Card>
-
-        <div className="text-center">
-          <button
-            onClick={onContinue}
-            className="px-8 py-4 rounded-lg font-semibold text-lg transition-all bg-blue-600 text-white hover:bg-blue-700 cursor-pointer"
-          >
-            Continue to Bidding
-          </button>
-        </div>
       </div>
     </div>
   );

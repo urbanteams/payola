@@ -175,6 +175,185 @@ export const POTS_PATTERN_6PLAYER: SongImplicationPattern = {
 };
 
 /**
+ * Multi-Map Mode - 3 Player Game
+ *
+ * Key differences from standard 3-player:
+ * - Two maps: NYC18 (18 edges each)
+ * - 5 rounds per map (10 rounds total)
+ * - 3 tokens per round (same as standard mode)
+ * - After round 5: 3 white NPC tokens fill remaining spaces on first map
+ * - After round 10: 3 white NPC tokens fill remaining spaces on second map
+ * - Starting money: $20 (instead of $30)
+ * - Money carries over between maps
+ * - Songs A, B, C available
+ * - Uses SAME song patterns as standard 3-player (ABB, BCC, CAA)
+ * - Player assignments randomize each round (same as standard)
+ */
+export const MULTI_MAP_PATTERN_3PLAYER: SongImplicationPattern = {
+  songA: 'ABB',
+  songB: 'BCC',
+  songC: 'CAA',
+  tokensPerRound: 3,
+  totalRounds: 10,
+  isPOTS: false,
+  finalPlacementPhase: false,
+};
+
+/**
+ * Multi-Map Mode - 4 Player Game
+ *
+ * Key differences from standard 4-player:
+ * - Two maps: NYC30 (30 edges each)
+ * - 5 rounds per map (10 rounds total)
+ * - 6 tokens per round
+ * - NO NPC tokens (map is exactly filled by player tokens: 6 × 5 = 30)
+ * - Starting money: $20 (instead of $30)
+ * - Money carries over between maps
+ * - Only 2 songs available (no Song C)
+ * - Song patterns: Song A = ABCDCD, Song B = CDABAB
+ * - Player assignments randomize each round
+ */
+export const MULTI_MAP_PATTERN_4PLAYER: SongImplicationPattern = {
+  songA: 'ABCDCD',
+  songB: 'CDABAB',
+  tokensPerRound: 6,
+  totalRounds: 10,
+  isPOTS: false,
+  finalPlacementPhase: false,
+};
+
+/**
+ * Multi-Map Mode - 6 Player Game
+ *
+ * Key differences from standard 6-player:
+ * - Two maps: NYC24 (24 edges each)
+ * - 5 rounds per map (10 rounds total)
+ * - 4 tokens per round
+ * - After round 5: 4 white NPC tokens fill remaining spaces on first map
+ * - After round 10: 4 white NPC tokens fill remaining spaces on second map
+ * - Starting money: $20 (instead of $30)
+ * - Money carries over between maps
+ * - Songs A, B, C available
+ * - Song patterns: ABCD, EFAB, CDEF
+ * - Player assignments randomize each round
+ * - Classical Stars present on both maps
+ */
+export const MULTI_MAP_PATTERN_6PLAYER: SongImplicationPattern = {
+  songA: 'ABCD',
+  songB: 'EFAB',
+  songC: 'CDEF',
+  tokensPerRound: 4,
+  totalRounds: 10,
+  isPOTS: false,
+  finalPlacementPhase: false,
+};
+
+/**
+ * Multi-Map Mode - 5 Player Game
+ *
+ * Key features:
+ * - Two maps: NYC25 (25 edges each)
+ * - 5 rounds per map (10 rounds total)
+ * - 5 tokens per round (no NPC tokens)
+ * - Map is exactly filled by player tokens: 5 × 5 = 25
+ * - Starting money: $20 (instead of $30)
+ * - Money carries over between maps
+ * - Classical Stars present on both maps (5+ players)
+ * - Only 2 songs available (Song A and Song B)
+ * - Song patterns: CDCDE, EABAB
+ */
+export const MULTI_MAP_PATTERN_5PLAYER: SongImplicationPattern = {
+  songA: 'CDCDE',
+  songB: 'EABAB',
+  tokensPerRound: 5,
+  totalRounds: 10,
+  isPOTS: false,
+  finalPlacementPhase: false,
+};
+
+/**
+ * Multi-Map Mode - 6A Variant (6 Players, No NPC)
+ *
+ * Key differences from standard 6-player Multi-Map:
+ * - Two maps: NYC30 (30 edges each) instead of NYC24
+ * - 5 rounds per map (10 rounds total)
+ * - 6 tokens per round (instead of 4)
+ * - NO NPC tokens (map is exactly filled by player tokens: 6 × 5 = 30)
+ * - Starting money: $20 (instead of $30)
+ * - Money carries over between maps
+ * - Songs A, B, C available (3 songs)
+ * - Song patterns: Song A = ABCDAB, Song B = CDEFCD, Song C = EFABEF
+ * - Each player (A-F) appears exactly 3 times across all songs
+ * - Player assignments randomize each round
+ * - Classical Stars present on both maps
+ */
+export const MULTI_MAP_PATTERN_6A: SongImplicationPattern = {
+  songA: 'ABCDAB',
+  songB: 'CDEFCD',
+  songC: 'EFABEF',
+  tokensPerRound: 6,
+  totalRounds: 10,
+  isPOTS: false,
+  finalPlacementPhase: false,
+};
+
+/**
+ * Multi-Map Mode - 4B Variant (4 Players, Card-Based Bidding)
+ *
+ * Key features:
+ * - Two maps: NYC20 (20 edges each)
+ * - 5 rounds per map (10 rounds total)
+ * - 4 tokens per round
+ * - Map is exactly filled by player tokens: 4 × 5 = 20
+ * - Starting cards: 8 cards (2×$1, 2×$2, 2×$3, 2×$4) - card-based bidding
+ * - Cards carry over between maps (spent cards permanent)
+ * - Rounds 1-5: Max 1 card per bid, Rounds 6-10: Max 2 cards per bid
+ * - Only 3 songs available (Song A, B, C)
+ * - Song patterns: Song A = ADBA, Song B = DACD, Song C = BCBC
+ * - Each player (A-D) appears exactly 3 times across all songs
+ * - Player assignments randomize each round
+ * - No Money Hub (replaced with Household)
+ * - 1 Buzz Hub + 1 of each of 5 star types
+ */
+export const MULTI_MAP_PATTERN_4B: SongImplicationPattern = {
+  songA: 'ADBA',
+  songB: 'DACD',
+  songC: 'BCBC',
+  tokensPerRound: 4,
+  totalRounds: 10,
+  isPOTS: false,
+  finalPlacementPhase: false,
+};
+
+/**
+ * Multi-Map Mode - 5B Variant (5 Players, Card-Based Bidding)
+ *
+ * Key features:
+ * - Two maps: NYC20 (20 edges each)
+ * - 4 rounds per map (8 rounds total)
+ * - 5 tokens per round
+ * - Map is exactly filled by player tokens: 5 × 4 = 20
+ * - Starting cards: 8 cards (2×$1, 2×$2, 2×$3, 2×$4) - card-based bidding
+ * - Cards carry over between maps (spent cards permanent)
+ * - Rounds 1-4: Max 1 card per bid, Rounds 5-7: Max 2 cards per bid, Round 8: Unlimited
+ * - Only 3 songs available (Song A, B, C)
+ * - Song patterns: Song A = ABCAB, Song B = DEBDE, Song C = CECAD
+ * - Each player (A-E) appears exactly 3 times across all songs
+ * - Player assignments randomize each round
+ * - No Money Hub (replaced with Household)
+ * - 1 Buzz Hub + 1 of each of 5 star types
+ */
+export const MULTI_MAP_PATTERN_5B: SongImplicationPattern = {
+  songA: 'ABCAB',
+  songB: 'DEBDE',
+  songC: 'CECAD',
+  tokensPerRound: 5,
+  totalRounds: 8,
+  isPOTS: false,
+  finalPlacementPhase: false,
+};
+
+/**
  * Validate that a pattern string only contains valid letters for the player count
  */
 export function validatePattern(pattern: string, playerCount: number): boolean {

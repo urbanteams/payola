@@ -35,3 +35,16 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# claude code
+.claude/
+
+# temporary files
+*.backup
+logs.txt
+*.PNG
+*.png
+
+# database
+prisma/prisma/
+*.db

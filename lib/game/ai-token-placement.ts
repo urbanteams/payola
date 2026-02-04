@@ -26,12 +26,10 @@ export async function processAITokenPlacement(gameId: string): Promise<boolean> 
     });
 
     if (!game || (game.status !== 'TOKEN_PLACEMENT' && game.status !== 'FINAL_PLACEMENT')) {
-      console.log('Game not in token placement phase, status:', game?.status);
       return false;
     }
 
     if (!game.highlightedEdges) {
-      console.log('No highlighted edges available');
       return false;
     }
 
@@ -53,18 +51,24 @@ export async function processAITokenPlacement(gameId: string): Promise<boolean> 
     const currentTurnIndex = game.currentTurnIndex ?? 0;
 
     if (currentTurnIndex >= turnOrder.length) {
-      console.log('All tokens already placed');
       return false;
     }
 
     const currentTurnPlayerId = turnOrder[currentTurnIndex];
     const currentPlayer = game.players.find(p => p.id === currentTurnPlayerId);
 
-    console.log(`AI Placement Check - Status: ${game.status}, Turn ${currentTurnIndex + 1}/${turnOrder.length}, Player: ${currentPlayer?.name}, isAI: ${currentPlayer?.isAI}`);
+    // Check if current player is AI or NPC
+    const isNPCPlayer = currentPlayer?.name === 'NPC';
 
-    // Check if current player is AI
-    if (!currentPlayer || !currentPlayer.isAI) {
-      console.log('Current player is not AI:', currentPlayer?.name);
+    if (!currentPlayer) {
+      console.error(`ERROR: Player ID '${currentTurnPlayerId}' from turn order not found in game players`);
+      console.error(`Turn order: ${JSON.stringify(turnOrder)}`);
+      console.error(`Game players: ${game.players.map(p => `${p.name}(${p.id})`).join(', ')}`);
+      console.error(`Game variant: ${game.gameVariant}, isMultiMap: ${game.isMultiMap}`);
+      return false;
+    }
+
+    if (!currentPlayer.isAI && !isNPCPlayer) {
       return false;
     }
 
@@ -88,9 +92,10 @@ export async function processAITokenPlacement(gameId: string): Promise<boolean> 
     }
 
     // Select random edge, token type, and orientation
+    // For NPC players, always use blank (0/0) tokens
     const randomEdge = availableEdges[Math.floor(Math.random() * availableEdges.length)];
-    const randomTokenType = TOKEN_TYPES[Math.floor(Math.random() * TOKEN_TYPES.length)];
-    const randomOrientation = ORIENTATIONS[Math.floor(Math.random() * ORIENTATIONS.length)];
+    const randomTokenType = isNPCPlayer ? '0/0' : TOKEN_TYPES[Math.floor(Math.random() * TOKEN_TYPES.length)];
+    const randomOrientation = isNPCPlayer ? 'A' : ORIENTATIONS[Math.floor(Math.random() * ORIENTATIONS.length)];
 
     // Create token
     await prisma.influenceToken.create({
@@ -147,20 +152,23 @@ export async function processAITokenPlacement(gameId: string): Promise<boolean> 
       where: { id: gameId },
       data: {
         currentTurnIndex: nextTurnIndex,
-        placementTimeout: allTokensPlaced ? null : new Date(Date.now() + 60000),
+        placementTimeout: allTokensPlaced ? null : new Date(Date.now() + 90000),
       },
     });
 
-    // Check if next player is also AI
+    // Check if next player is also AI or NPC
     if (!allTokensPlaced) {
       const nextPlayerId = turnOrder[nextTurnIndex];
       const nextPlayer = game.players.find(p => p.id === nextPlayerId);
-      return nextPlayer?.isAI === true;
+      const nextIsNPC = nextPlayer?.name === 'NPC';
+      return nextPlayer?.isAI === true || nextIsNPC;
     }
 
     return false; // All tokens placed
   } catch (error) {
     console.error('AI token placement error:', error);
+    console.error('Error details:', error instanceof Error ? error.message : String(error));
+    console.error('Stack:', error instanceof Error ? error.stack : 'No stack');
     return false;
   }
 }
@@ -181,7 +189,7 @@ export async function processAllAITokenPlacements(gameId: string): Promise<boole
 
     // Small delay to avoid overwhelming the database
     if (hasMoreAI) {
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 50));
     }
   }
 

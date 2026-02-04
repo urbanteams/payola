@@ -125,8 +125,32 @@ export function TokenPlacementInterface({
         console.log('Immediate reward:', result.immediateReward);
       }
 
-      // Refresh game state
-      onTokenPlaced();
+      // If all tokens placed for this round, call advance endpoint to complete round
+      if (result.allTokensPlaced) {
+        try {
+          const advanceResponse = await fetch(`/api/game/${gameId}/advance`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              action: 'completeTokenPlacement',
+            }),
+          });
+
+          if (!advanceResponse.ok) {
+            console.error('Failed to complete token placement');
+          }
+        } catch (err) {
+          console.error('Error completing token placement:', err);
+        }
+
+        // Refresh game state AFTER completeTokenPlacement finishes
+        onTokenPlaced();
+      } else {
+        // Refresh game state for next turn
+        onTokenPlaced();
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to place token';
       setError(errorMessage);

@@ -96,13 +96,6 @@ export function SpinningWheel({ winner, onWinnerSelected, availableSongs = ["A",
             stroke="#fff"
             strokeWidth="2"
           />
-          {/* Labels - positioned within their sections, off the center line */}
-          <text x="150" y="100" textAnchor="middle" fill="white" fontSize="32" fontWeight="bold">
-            {songs[0]}
-          </text>
-          <text x="50" y="100" textAnchor="middle" fill="white" fontSize="32" fontWeight="bold">
-            {songs[1]}
-          </text>
         </>
       );
     } else if (numSongs === 3) {
@@ -131,16 +124,6 @@ export function SpinningWheel({ winner, onWinnerSelected, availableSongs = ["A",
             stroke="#fff"
             strokeWidth="2"
           />
-          {/* Labels - positioned within their sections, off the center lines */}
-          <text x="145" y="70" textAnchor="middle" fill="white" fontSize="32" fontWeight="bold">
-            {songs[0]}
-          </text>
-          <text x="155" y="135" textAnchor="middle" fill="white" fontSize="32" fontWeight="bold">
-            {songs[1]}
-          </text>
-          <text x="45" y="135" textAnchor="middle" fill="white" fontSize="32" fontWeight="bold">
-            {songs[2]}
-          </text>
         </>
       );
     } else {
@@ -176,19 +159,6 @@ export function SpinningWheel({ winner, onWinnerSelected, availableSongs = ["A",
             stroke="#fff"
             strokeWidth="2"
           />
-          {/* Labels - positioned within their sections */}
-          <text x="145" y="55" textAnchor="middle" fill="white" fontSize="32" fontWeight="bold">
-            {songs[0]}
-          </text>
-          <text x="145" y="155" textAnchor="middle" fill="white" fontSize="32" fontWeight="bold">
-            {songs[1]}
-          </text>
-          <text x="55" y="155" textAnchor="middle" fill="white" fontSize="32" fontWeight="bold">
-            {songs[2]}
-          </text>
-          <text x="55" y="55" textAnchor="middle" fill="white" fontSize="32" fontWeight="bold">
-            {songs[3]}
-          </text>
         </>
       );
     }

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { TokenPlacementInterface } from './TokenPlacementInterface';
 import { HexagonalMap } from './HexagonalMap';
 import { TabViewSwitcher } from './TabViewSwitcher';
+import { FirstMapResultsTab } from './FirstMapResultsTab';
 import { Card, CardContent } from '@/components/ui/Card';
 import { deserializeMapLayout } from '@/lib/game/map-generator';
 import type { MapLayout } from '@/lib/game/map-generator';
@@ -50,6 +51,9 @@ interface TokenPlacementPhaseProps {
     roundNumber: number;
   }>;
   isFinalPlacement?: boolean;
+  isMultiMap?: boolean;
+  currentMapNumber?: number;
+  firstMapResults?: string | null;
   onTokenPlaced: () => void;
 }
 
@@ -67,11 +71,16 @@ export function TokenPlacementPhase({
   placementTimeout: placementTimeoutStr,
   tokens: tokensData,
   isFinalPlacement = false,
+  isMultiMap = false,
+  currentMapNumber = 1,
+  firstMapResults = null,
   onTokenPlaced,
 }: TokenPlacementPhaseProps) {
-  const [currentView, setCurrentView] = useState<'game' | 'map'>('map');
+  const [currentView, setCurrentView] = useState<'game' | 'map' | 'firstMap'>('map');
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
   const [autoPlacing, setAutoPlacing] = useState(false);
+  const [lowTimeNotificationShown, setLowTimeNotificationShown] = useState(false);
+  const [showLowTimeWarning, setShowLowTimeWarning] = useState(false);
 
   // Parse data
   const mapLayout: MapLayout | null = mapLayoutStr ? deserializeMapLayout(mapLayoutStr) : null;
@@ -113,10 +122,35 @@ export function TokenPlacementPhase({
   // Check if all placements are complete (currentTurnIndex is beyond turn order)
   const allPlacementsComplete = currentTurnIndex >= turnOrder.length;
 
+  // Play sound effect
+  const playNotificationSound = () => {
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+
+      oscillator.frequency.value = 800; // Frequency in Hz
+      oscillator.type = 'sine'; // Sine wave for a soft tone
+
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime); // Volume
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.5);
+    } catch (error) {
+      console.error('Failed to play notification sound:', error);
+    }
+  };
+
   // Countdown timer
   useEffect(() => {
     if (!placementTimeoutStr) {
       setTimeRemaining(null);
+      setLowTimeNotificationShown(false);
+      setShowLowTimeWarning(false);
       return;
     }
 
@@ -125,6 +159,19 @@ export function TokenPlacementPhase({
       const now = Date.now();
       const remaining = Math.max(0, Math.floor((timeout - now) / 1000));
       setTimeRemaining(remaining);
+
+      // Show notification and play sound at 15 seconds
+      if (remaining === 15 && isMyTurn && !lowTimeNotificationShown) {
+        setLowTimeNotificationShown(true);
+        playNotificationSound();
+      }
+
+      // Keep banner visible for entire duration when <= 15 seconds
+      if (remaining <= 15 && remaining > 0 && isMyTurn) {
+        setShowLowTimeWarning(true);
+      } else {
+        setShowLowTimeWarning(false);
+      }
 
       // Auto-place when timer reaches 0
       if (remaining === 0 && isMyTurn && !autoPlacing) {
@@ -135,7 +182,7 @@ export function TokenPlacementPhase({
     updateTimer();
     const interval = setInterval(updateTimer, 1000);
     return () => clearInterval(interval);
-  }, [placementTimeoutStr, isMyTurn, autoPlacing]);
+  }, [placementTimeoutStr, isMyTurn, autoPlacing, lowTimeNotificationShown]);
 
   const handleAutoPlace = async () => {
     setAutoPlacing(true);
@@ -182,10 +229,31 @@ export function TokenPlacementPhase({
 
   return (
     <div className="space-y-6">
-      {/* Tab Switcher */}
-      <TabViewSwitcher currentView={currentView} onViewChange={setCurrentView} />
+      {/* Low Time Warning Banner */}
+      {showLowTimeWarning && timeRemaining !== null && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 transition-all duration-300 ease-out">
+          <div className="bg-yellow-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-3 border-2 border-yellow-600">
+            <span className="text-2xl">⏰</span>
+            <div>
+              <p className="font-bold">Time Running Out!</p>
+              <p className="text-sm">
+                Only <span className="text-red-600 font-bold text-lg">{timeRemaining}</span> seconds remaining to place your token
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
-      {currentView === 'map' ? (
+      {/* Tab Switcher */}
+      <TabViewSwitcher
+        currentView={currentView}
+        onViewChange={setCurrentView}
+        showFirstMapTab={isMultiMap && currentMapNumber === 2 && firstMapResults !== null}
+      />
+
+      {currentView === 'firstMap' && isMultiMap && firstMapResults ? (
+        <FirstMapResultsTab firstMapResults={firstMapResults} />
+      ) : currentView === 'map' ? (
         <>
           {/* Header - Show Final Placement or Token Placement */}
           {isFinalPlacement && (
@@ -213,7 +281,7 @@ export function TokenPlacementPhase({
                       />
                     )}
                     <p className="text-2xl font-bold text-gray-800">
-                      {currentTurnPlayer?.name || 'Unknown Player'}
+                      {currentTurnPlayer?.name || 'NPC Token Placing...'}
                       {isMyTurn && <span className="ml-3 text-green-600">← Your Turn!</span>}
                     </p>
                   </div>
@@ -235,7 +303,7 @@ export function TokenPlacementPhase({
 
               {!isMyTurn && (
                 <p className="text-gray-500 mt-3">
-                  Waiting for {currentTurnPlayer?.name} to place their token...
+                  {currentTurnPlayer ? `Waiting for ${currentTurnPlayer.name} to place their token...` : 'NPC token being placed...'}
                 </p>
               )}
 
@@ -254,6 +322,9 @@ export function TokenPlacementPhase({
               <div className="flex flex-wrap gap-2">
                 {turnOrder.map((playerId, index) => {
                   const player = players.find(p => p.id === playerId);
+                  // Filter out NPC players (undefined in players list)
+                  if (!player) return null;
+
                   const isCurrent = index === currentTurnIndex;
                   const hasPlaced = index < currentTurnIndex;
 
@@ -268,14 +339,14 @@ export function TokenPlacementPhase({
                           : 'bg-gray-50 border-gray-300'
                       }`}
                     >
-                      {player?.playerColor && (
+                      {player.playerColor && (
                         <div
                           className="w-4 h-4 rounded-full border border-gray-700"
                           style={{ backgroundColor: player.playerColor }}
                         />
                       )}
                       <span className={`text-sm font-semibold ${isCurrent ? 'text-blue-800' : 'text-gray-700'}`}>
-                        {player?.name || 'Unknown'}
+                        {player.name}
                       </span>
                       {hasPlaced && <span className="text-green-600 text-xs">✓</span>}
                       {isCurrent && <span className="text-blue-600 text-xs">◀</span>}

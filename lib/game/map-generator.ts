@@ -18,7 +18,7 @@ export type HexType =
   | 'buzzHub' // 1 per map
   | 'moneyHub'; // 1 per map
 
-export type MapType = 'NYC36' | 'NYC48';
+export type MapType = 'NYC15' | 'NYC18' | 'NYC20' | 'NYC24' | 'NYC25' | 'NYC30' | 'NYC36' | 'NYC48';
 
 export interface HexTile {
   coordinate: HexCoordinate;
@@ -28,7 +28,7 @@ export interface HexTile {
 }
 
 export interface MapLayout {
-  mapType: 'NYC36' | 'NYC48';
+  mapType: 'NYC15' | 'NYC18' | 'NYC20' | 'NYC24' | 'NYC25' | 'NYC30' | 'NYC36' | 'NYC48';
   playerCount: number;
   hexes: HexTile[];
   edges: EdgeId[]; // All edge IDs (shared sides between hexagons where tokens can be placed)
@@ -39,6 +39,62 @@ export interface MapLayout {
 function hexId(coord: HexCoordinate): string {
   return `hex_${coord.q}_${coord.r}`;
 }
+
+/**
+ * NYC20 Fallback Map (4B variant Multi-Map)
+ * Used if random generation fails for 20 edge maps
+ * Compact layout: 11 hexagons creating exactly 20 edges
+ */
+const NYC20_POSITIONS: HexCoordinate[] = [
+  // Row r=0 (2 hexes) - top
+  { q: 2, r: 0 },
+  { q: 3, r: 0 },
+
+  // Row r=1 (3 hexes)
+  { q: 1, r: 1 },
+  { q: 2, r: 1 },
+  { q: 3, r: 1 },
+
+  // Row r=2 (4 hexes) - widest
+  { q: 0, r: 2 },
+  { q: 1, r: 2 },
+  { q: 2, r: 2 },
+  { q: 3, r: 2 },
+
+  // Row r=3 (2 hexes) - bottom
+  { q: 1, r: 3 },
+  { q: 2, r: 3 },
+]; // 11 hexes total = exactly 20 edges
+
+/**
+ * NYC25 Fallback Map (5 players Multi-Map)
+ * Used if random generation fails for 24-25 edge maps
+ * Offset rows layout: 13 hexagons creating exactly 25 edges
+ */
+const NYC25_POSITIONS: HexCoordinate[] = [
+  // Row r=0 (2 hexes) - top
+  { q: 2, r: 0 },
+  { q: 3, r: 0 },
+
+  // Row r=1 (3 hexes)
+  { q: 1, r: 1 },
+  { q: 2, r: 1 },
+  { q: 3, r: 1 },
+
+  // Row r=2 (4 hexes) - widest section
+  { q: 0, r: 2 },
+  { q: 1, r: 2 },
+  { q: 2, r: 2 },
+  { q: 3, r: 2 },
+
+  // Row r=3 (2 hexes)
+  { q: 1, r: 3 },
+  { q: 2, r: 3 },
+
+  // Row r=4 (2 hexes) - bottom
+  { q: 1, r: 4 },
+  { q: 2, r: 4 },
+]; // 13 hexes total = exactly 25 edges
 
 /**
  * NYC36 Fallback Map (3-4 players)
@@ -218,7 +274,7 @@ function validateMapHasNoSingleEdgeHexes(hexes: HexCoordinate[]): boolean {
  * Generate a random connected map with target number of edges
  * Grows map from center, randomly adding adjacent hexes until target edge count is reached
  */
-function generateRandomMapLayout(targetEdges: number, maxAttempts: number = 50): HexCoordinate[] {
+function generateRandomMapLayout(targetEdges: number, maxAttempts: number = 150): HexCoordinate[] {
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     // Start with center hex
     const hexes: HexCoordinate[] = [{ q: 0, r: 0 }];
@@ -283,7 +339,25 @@ function generateRandomMapLayout(targetEdges: number, maxAttempts: number = 50):
 
   // Fallback: return the fixed layouts if random generation fails
   console.warn(`Failed to generate map with ${targetEdges} edges after ${maxAttempts} attempts, using fallback`);
-  return targetEdges === 36 ? NYC36_POSITIONS : NYC48_POSITIONS;
+
+  // Choose closest fallback based on target edges
+  // NYC20_POSITIONS (20 edges) for: 15, 18, 20 (small maps)
+  // NYC25_POSITIONS (25 edges) for: 24, 25 (medium maps)
+  // NYC36_POSITIONS (36 edges) for: 30, 36 (medium/large maps)
+  // NYC48_POSITIONS (48 edges) for: 48+ (extra large maps)
+  if (targetEdges <= 20) {
+    console.log(`Using NYC20 fallback (20 edges) for target ${targetEdges}`);
+    return NYC20_POSITIONS;
+  } else if (targetEdges <= 25) {
+    console.log(`Using NYC25 fallback (25 edges) for target ${targetEdges}`);
+    return NYC25_POSITIONS;
+  } else if (targetEdges <= 36) {
+    console.log(`Using NYC36 fallback (36 edges) for target ${targetEdges}`);
+    return NYC36_POSITIONS;
+  } else {
+    console.log(`Using NYC48 fallback (48 edges) for target ${targetEdges}`);
+    return NYC48_POSITIONS;
+  }
 }
 
 /**
@@ -344,6 +418,152 @@ export function generateMapLayout(
   });
 
   // Calculate all edges (shared sides between hexagons)
+  const edges = getAllEdges(positions);
+
+  // Calculate total rounds
+  const totalRounds = calculateTotalRounds(edges.length, playerCount);
+
+  return {
+    mapType,
+    playerCount,
+    hexes,
+    edges,
+    totalRounds,
+  };
+}
+
+/**
+ * Generate a map layout with a specific number of edges (for testing purposes)
+ * Supports 15, 18, 20, 24, 25, 30, 36, or 48 edges
+ * Small maps (15/18/20/24/25): Stars appear 1x each (no Classical Star)
+ * Medium map (30): Stars appear 2x each (no Classical Star)
+ * Large maps (36/48): Stars appear 2x each (Classical Star for 48 only)
+ * @param includeClassicalStars Optional flag to force inclusion of Classical Stars (for 6-player NYC24)
+ * @param noMoneyHub Optional flag to replace Money Hub with an additional Household tile (for 3B/4B variants)
+ */
+export function generateMapLayoutWithEdgeCount(
+  targetEdges: number,
+  includeClassicalStars?: boolean,
+  noMoneyHub?: boolean
+): MapLayout {
+  if (![15, 18, 20, 24, 25, 30, 36, 48].includes(targetEdges)) {
+    throw new Error('Target edges must be 15, 18, 20, 24, 25, 30, 36, or 48');
+  }
+
+  // Determine map type and player count
+  let mapType: MapType;
+  let playerCount: number;
+
+  if (targetEdges === 15) {
+    mapType = 'NYC15';
+    playerCount = 2; // Estimate for small map
+  } else if (targetEdges === 18) {
+    mapType = 'NYC18';
+    playerCount = 2; // Estimate for small map
+  } else if (targetEdges === 20) {
+    mapType = 'NYC20';
+    playerCount = 4; // 4B variant
+  } else if (targetEdges === 24) {
+    mapType = 'NYC24';
+    playerCount = 3; // Estimate for medium map
+  } else if (targetEdges === 25) {
+    mapType = 'NYC25';
+    playerCount = 3; // Estimate for medium map
+  } else if (targetEdges === 30) {
+    mapType = 'NYC30';
+    playerCount = 3; // Estimate for medium map
+  } else if (targetEdges === 36) {
+    mapType = 'NYC36';
+    playerCount = 4;
+  } else {
+    mapType = 'NYC48';
+    playerCount = 6;
+  }
+
+  // Generate random map with target edge count
+  const positions = generateRandomMapLayout(targetEdges);
+  const totalHexes = positions.length;
+
+  // Get hex type distribution based on edge count
+  // For 3B/4B/6B variants (noMoneyHub), replace moneyHub with households
+  let distribution: HexType[] = [];
+
+  if (noMoneyHub) {
+    // 3B/4B/6B variants: No Money Hub, just Buzz Hub
+    distribution = ['buzzHub'];
+  } else {
+    // Standard: Both hubs
+    distribution = ['buzzHub', 'moneyHub'];
+  }
+
+  // Maps with 1x each of 5 main stars (no Classical Star)
+  if (targetEdges === 15 || targetEdges === 18 || targetEdges === 20 || targetEdges === 24 || targetEdges === 25) {
+    distribution.push('bluesStar');
+    distribution.push('countryStar');
+    distribution.push('jazzStar');
+    distribution.push('rockStar');
+    distribution.push('popStar');
+
+    // Add classical star if explicitly requested (6-player Multi-Map on NYC24)
+    if (includeClassicalStars && targetEdges === 24) {
+      distribution.push('classicalStar');
+    }
+    // Current count: 7 (without classical) or 8 (with classical for NYC24)
+    // For NYC20 with noMoneyHub: 6 (buzzHub + 5 stars) base distribution
+  }
+  // Maps with 2x each of 5 main stars (+ 2x Classical Star for NYC30 6B variant)
+  else if (targetEdges === 30 || targetEdges === 36) {
+    distribution.push('bluesStar', 'bluesStar');
+    distribution.push('countryStar', 'countryStar');
+    distribution.push('jazzStar', 'jazzStar');
+    distribution.push('rockStar', 'rockStar');
+    distribution.push('popStar', 'popStar');
+
+    // Add 2x Classical Stars for 6B variant (NYC30)
+    if (includeClassicalStars && targetEdges === 30) {
+      distribution.push('classicalStar', 'classicalStar');
+    }
+    // Current count: 12 for standard (buzzHub + moneyHub + 10 stars)
+    //                11 for 4B (buzzHub + 10 stars, no moneyHub)
+    //                13 for 6B (buzzHub + 10 stars + 2 classicalStars, no moneyHub)
+  }
+  // 48-edge map: 2x each of 5 main stars + 2x Classical Star
+  else if (targetEdges === 48) {
+    distribution.push('bluesStar', 'bluesStar');
+    distribution.push('countryStar', 'countryStar');
+    distribution.push('jazzStar', 'jazzStar');
+    distribution.push('rockStar', 'rockStar');
+    distribution.push('popStar', 'popStar');
+    distribution.push('classicalStar', 'classicalStar');
+    // Current count: 14
+  }
+
+  // Fill remaining slots with households
+  const householdsNeeded = totalHexes - distribution.length;
+  for (let i = 0; i < householdsNeeded; i++) {
+    distribution.push('households');
+  }
+
+  // Shuffle hex types for randomization
+  const shuffledTypes = shuffle(distribution);
+
+  // Create a set for quick lookup
+  const hexSet = new Set(positions.map(h => `${h.q}_${h.r}`));
+
+  // Create hex tiles
+  const hexes: HexTile[] = positions.map((coord, index) => {
+    const neighbors = getHexNeighbors(coord);
+    const edgeCount = neighbors.filter(n => hexSet.has(`${n.q}_${n.r}`)).length;
+
+    return {
+      coordinate: coord,
+      type: shuffledTypes[index],
+      id: hexId(coord),
+      edgeCount,
+    };
+  });
+
+  // Calculate all edges
   const edges = getAllEdges(positions);
 
   // Calculate total rounds

@@ -10,6 +10,12 @@ interface GameState {
     roundNumber: number;
     winningSong: string | null;
     isPOTS: boolean;
+    isMultiMap: boolean;
+    gameVariant: string | null;
+    currentMapNumber: number;
+    firstMapLayout: string | null;
+    firstMapResults: string | null;
+    secondMapLayout: string | null;
     turnOrderA: string[] | null;
     turnOrderB: string[] | null;
     turnOrderC: string[] | null;
@@ -19,6 +25,7 @@ interface GameState {
     highlightedEdges: string | null;
     currentTurnIndex: number | null;
     placementTimeout: string | null;
+    totalRounds: number | null;
   };
   players: Array<{
     id: string;
@@ -26,6 +33,7 @@ interface GameState {
     currencyBalance: number | null;
     victoryPoints: number;
     playerColor: string | null;
+    cardInventory: string | null;
     isMe: boolean;
   }>;
   tokens: Array<{
@@ -68,8 +76,8 @@ interface GameContextType {
   gameState: GameState | null;
   loading: boolean;
   error: string | null;
-  submitBid: (song: string, amount: number) => Promise<void>;
-  advanceGame: (action: "start" | "nextRound" | "finish") => Promise<void>;
+  submitBid: (song: string, amount: number, cards?: number[]) => Promise<void>;
+  advanceGame: (action: "start" | "nextRound" | "finish" | "startSecondMap" | "completeTokenPlacement" | "startTokenPlacement") => Promise<void>;
   refetch: () => Promise<void>;
 }
 
@@ -132,7 +140,7 @@ export function GameProvider({ gameId, children }: Omit<GameProviderProps, 'poll
     }
   }, [gameId]);
 
-  const submitBid = useCallback(async (song: string, amount: number) => {
+  const submitBid = useCallback(async (song: string, amount: number, cards?: number[]) => {
     try {
       setError(null);
       const response = await fetch(`/api/game/${gameId}/bid`, {
@@ -140,7 +148,7 @@ export function GameProvider({ gameId, children }: Omit<GameProviderProps, 'poll
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ song, amount }),
+        body: JSON.stringify({ song, amount, cards }),
       });
 
       if (!response.ok) {
@@ -169,7 +177,7 @@ export function GameProvider({ gameId, children }: Omit<GameProviderProps, 'poll
     }
   }, [gameId, fetchGameState]);
 
-  const advanceGame = useCallback(async (action: "start" | "nextRound" | "finish") => {
+  const advanceGame = useCallback(async (action: "start" | "nextRound" | "finish" | "startSecondMap" | "completeTokenPlacement" | "startTokenPlacement") => {
     try {
       setError(null);
       const response = await fetch(`/api/game/${gameId}/advance`, {

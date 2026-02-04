@@ -32,6 +32,7 @@ interface ResultsDisplayProps {
   turnOrderD?: string[] | null; // Array of player IDs
   isPOTS?: boolean; // Is POTS mode
   currentRound?: number; // Current round number
+  totalRounds?: number; // Total rounds in the game
 }
 
 export function ResultsDisplay({
@@ -46,7 +47,8 @@ export function ResultsDisplay({
   turnOrderC,
   turnOrderD,
   isPOTS = false,
-  currentRound = 1
+  currentRound = 1,
+  totalRounds
 }: ResultsDisplayProps) {
   const songTotals = calculateSongTotals(bids);
   const winningSong = determineWinningSong(songTotals, forcedWinner || undefined);
@@ -274,10 +276,10 @@ export function ResultsDisplay({
             className="w-full"
           >
             {isAdvancing
-              ? (isPOTS && currentRound === 10 ? "Advancing to Final Placement..." : "Advancing to Placement...")
+              ? (isPOTS && currentRound === totalRounds ? "Advancing to Final Placement..." : "Advancing to Placement...")
               : countdown > 0
-                ? (isPOTS && currentRound === 10 ? `Advance to Final Placement (${countdown}s)` : `Advance to Placement (${countdown}s)`)
-                : (isPOTS && currentRound === 10 ? "Advance to Final Placement" : "Advance to Placement")
+                ? (isPOTS && currentRound === totalRounds ? `Advance to Final Placement (${countdown}s)` : `Advance to Placement (${countdown}s)`)
+                : (isPOTS && currentRound === totalRounds ? "Advance to Final Placement" : "Advance to Placement")
             }
           </Button>
         </div>

@@ -18,7 +18,7 @@ const PLAYER_COLORS = [
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { playerName, playerCount = 3 } = body;
+    const { playerName, playerCount: requestedPlayerCount, variant } = body;
 
     if (!playerName || typeof playerName !== "string" || playerName.trim().length === 0) {
       return NextResponse.json(
@@ -27,18 +27,57 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (typeof playerCount !== "number" || playerCount < 3 || playerCount > 6) {
+    // Multi-Map mode supports 3, 4, or 6 players (default 3 for backward compatibility)
+    const playerCount = requestedPlayerCount || 3;
+
+    // Validate player count
+    if (![3, 4, 5, 6].includes(playerCount)) {
       return NextResponse.json(
-        { error: "Player count must be between 3 and 6" },
+        { error: "Multi-Map mode only supports 3, 4, 5, or 6 players" },
         { status: 400 }
       );
     }
 
-    // Automatically select B variant based on player count
-    const gameVariant = playerCount === 3 ? "3B"
-                      : playerCount === 4 ? "4B"
-                      : playerCount === 5 ? "5B"
-                      : "6B"; // 6 players
+    // Validate variant
+    const gameVariant = variant || null;
+    if (gameVariant && !["3A", "3B", "4B", "5B", "6A", "6B"].includes(gameVariant)) {
+      return NextResponse.json(
+        { error: "Invalid game variant" },
+        { status: 400 }
+      );
+    }
+
+    // 3A and 3B variants are only valid for 3 players
+    if ((gameVariant === "3A" || gameVariant === "3B") && playerCount !== 3) {
+      return NextResponse.json(
+        { error: "3A and 3B variants are only valid for 3-player games" },
+        { status: 400 }
+      );
+    }
+
+    // 4B variant is only valid for 4 players
+    if (gameVariant === "4B" && playerCount !== 4) {
+      return NextResponse.json(
+        { error: "4B variant is only valid for 4-player games" },
+        { status: 400 }
+      );
+    }
+
+    // 5B variant is only valid for 5 players
+    if (gameVariant === "5B" && playerCount !== 5) {
+      return NextResponse.json(
+        { error: "5B variant is only valid for 5-player games" },
+        { status: 400 }
+      );
+    }
+
+    // 6A and 6B variants are only valid for 6 players
+    if ((gameVariant === "6A" || gameVariant === "6B") && playerCount !== 6) {
+      return NextResponse.json(
+        { error: "6A and 6B variants are only valid for 6-player games" },
+        { status: 400 }
+      );
+    }
 
     // Generate unique room code
     let roomCode = generateRoomCode();
@@ -50,20 +89,24 @@ export async function POST(request: NextRequest) {
       existingGame = await prisma.game.findUnique({ where: { roomCode } });
     }
 
-    // Generate FIRST map with appropriate edge count for B variants
-    const edgeCount = gameVariant === "3B" ? 15  // 3B variant uses NYC15
+    // Generate FIRST map with NYC15 (for 3A/3B), NYC18 (3 players), NYC20 (4B/5B), NYC30 (4 players or 6A/6B), NYC25 (5 players), or NYC24 (6 players)
+    const edgeCount = (gameVariant === "3A" || gameVariant === "3B") ? 15  // 3A/3B variants use NYC15
                     : gameVariant === "4B" ? 20  // 4B variant uses NYC20 (4 tokens × 5 rounds = 20)
                     : gameVariant === "5B" ? 20  // 5B variant uses NYC20 (5 tokens × 4 rounds = 20)
-                    : 30; // 6B variant uses NYC30 (6 tokens × 5 rounds = 30)
-    const includeClassicalStars = gameVariant === "6B"; // Only 6B gets Classical Stars
-    const noMoneyHub = true; // All B variants replace Money Hub with Household
+                    : (gameVariant === "6A" || gameVariant === "6B") ? 30  // 6A/6B variants use NYC30 (6 tokens × 5 rounds = 30)
+                    : playerCount === 3 ? 18
+                    : playerCount === 4 ? 30  // 4-player uses NYC30 (6 tokens × 5 rounds = 30)
+                    : playerCount === 5 ? 25  // 5-player uses NYC25 (5 tokens × 5 rounds = 25)
+                    : 24; // 6-player standard
+    const includeClassicalStars = (playerCount >= 5 && gameVariant !== "5B") || gameVariant === "6B"; // 5+ player modes get Classical Stars (except 5B variant)
+    const noMoneyHub = gameVariant === "3B" || gameVariant === "4B" || gameVariant === "5B" || gameVariant === "6B"; // 3B/4B/5B/6B variants replace Money Hub with Household
     const firstMapLayout = generateMapLayoutWithEdgeCount(edgeCount, includeClassicalStars, noMoneyHub);
     const totalRounds = getTotalRounds(playerCount, false, true, gameVariant); // useMultiMap = true, pass gameVariant
 
     // Generate turn orders for the first round using Multi-Map patterns
     const implications = getSongImplications(playerCount, undefined, false, true, gameVariant); // useMultiMap = true, pass variant
 
-    // Generate initial highlighted edges for first map
+    // Generate initial highlighted edges for first map (3 tokens per round)
     const tokensPerRound = implications.tokensPerRound;
     const highlightedEdges = selectRandomVertices(firstMapLayout, [], tokensPerRound);
 
@@ -75,9 +118,8 @@ export async function POST(request: NextRequest) {
         mapType: firstMapLayout.mapType,
         mapLayout: serializeMapLayout(firstMapLayout),
         totalRounds,
-        isPOTS: false, // Not using POTS mode
         isMultiMap: true, // Enable Multi-Map mode
-        gameVariant: gameVariant, // Store variant (3B, 4B, 5B, or 6B)
+        gameVariant: gameVariant, // Store variant (e.g., "3A")
         currentMapNumber: 1, // Starting with first map
         firstMapLayout: serializeMapLayout(firstMapLayout), // Store first map separately
         highlightedEdges: JSON.stringify(highlightedEdges), // Store for later use
@@ -93,24 +135,24 @@ export async function POST(request: NextRequest) {
         name: playerName.trim(),
         sessionToken,
         currencyBalance: 20, // Multi-Map mode starts with $20
-        cardInventory: serializeInventory(createInitialInventory()), // All B variants use card-based bidding
+        cardInventory: (gameVariant === "3B" || gameVariant === "4B" || gameVariant === "5B" || gameVariant === "6B") ? serializeInventory(createInitialInventory()) : null,
         isAI: false,
         playerColor: PLAYER_COLORS[0], // First player gets first color
       },
     });
 
-    // Create AI players (playerCount - 1 bots)
-    const aiCount = playerCount - 1;
+    // Create AI players (number depends on player count)
     const aiNames = ["Bailey", "Karthik", "Grace", "Roberto", "Tricks"];
+    const aiPlayerCount = playerCount - 1; // All players except human are AI
     const aiPlayers = [];
-    for (let i = 0; i < aiCount; i++) {
+    for (let i = 0; i < aiPlayerCount; i++) {
       const aiPlayer = await prisma.player.create({
         data: {
           gameId: game.id,
           name: aiNames[i],
           sessionToken: generateSessionToken(), // AI still needs a token but won't use it
           currencyBalance: 20, // Multi-Map mode starts with $20
-          cardInventory: serializeInventory(createInitialInventory()), // All B variants use card-based bidding
+          cardInventory: (gameVariant === "3B" || gameVariant === "4B" || gameVariant === "5B" || gameVariant === "6B") ? serializeInventory(createInitialInventory()) : null,
           isAI: true,
           playerColor: PLAYER_COLORS[i + 1], // AI players get subsequent colors
         },
@@ -118,10 +160,33 @@ export async function POST(request: NextRequest) {
       aiPlayers.push(aiPlayer);
     }
 
+    // Create NPC player for blank tokens in Multi-Map mode
+    // Skip for: 3A variant, 3B variant, 6A variant, 6B variant, 4-player (uses NYC30, no NPC needed), 5-player (uses NYC25, no NPC needed)
+    let npcPlayer = null;
+    if (gameVariant !== "3A" && gameVariant !== "3B" && gameVariant !== "6A" && gameVariant !== "6B" && playerCount !== 4 && playerCount !== 5) {
+      npcPlayer = await prisma.player.create({
+        data: {
+          gameId: game.id,
+          name: "NPC",
+          sessionToken: generateSessionToken(),
+          currencyBalance: 0, // NPC doesn't participate in bidding
+          isAI: true,
+          playerColor: "#FFFFFF", // White for NPC tokens
+        },
+      });
+    }
+
     // Now convert turn order indices to player IDs
     const allPlayers = [humanPlayer, ...aiPlayers];
     const convertIndicesToPlayerIds = (indexString: string): string[] => {
       return indexString.split('').map(indexChar => {
+        // Map "X" to NPC player ID for 5-player mode
+        if (indexChar === 'X' || indexChar === 'x') {
+          if (!npcPlayer) {
+            throw new Error('NPC player required for this mode');
+          }
+          return npcPlayer.id;
+        }
         const index = parseInt(indexChar, 10);
         return allPlayers[index].id;
       });
@@ -151,11 +216,11 @@ export async function POST(request: NextRequest) {
       playerId: humanPlayer.id,
     });
   } catch (error) {
-    console.error("Create AI game error:", error);
+    console.error("Create Multi-Map game error:", error);
     console.error("Error details:", error instanceof Error ? error.message : String(error));
     console.error("Error stack:", error instanceof Error ? error.stack : "No stack trace");
     return NextResponse.json(
-      { error: "Failed to create AI game", details: error instanceof Error ? error.message : String(error) },
+      { error: "Failed to create Multi-Map game", details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }

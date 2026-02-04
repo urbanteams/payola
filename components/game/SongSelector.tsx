@@ -60,11 +60,10 @@ export function SongSelector({
 
     if (!turnOrder || turnOrder.length === 0) return null;
 
-    // Map player IDs to player objects
-    const playerObjects = turnOrder.map(playerId => {
-      const player = players.find(p => p.id === playerId);
-      return player || { id: playerId, name: 'Unknown', isMe: false };
-    });
+    // Map player IDs to player objects, filtering out NPC players
+    const playerObjects = turnOrder
+      .map(playerId => players.find(p => p.id === playerId))
+      .filter((player): player is Player => player !== undefined); // Filter out NPC (not in players list)
 
     // Create elements with bold for current player
     return (

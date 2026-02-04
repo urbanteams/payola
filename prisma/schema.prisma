@@ -20,6 +20,12 @@ model Game {
   mapLayout        String?           // JSON serialized hex positions and types
   totalRounds      Int?              // Calculated based on player count + vertex count
   isPOTS           Boolean           @default(false) // POTS mode: fixed implications, 10 rounds, final placement
+  isMultiMap       Boolean           @default(false) // Multi-Map mode: two 18-edge maps, 5 rounds each, NPC tokens
+  gameVariant      String?           // Game variant (e.g., "3A" for 3-player NYC15 without NPC)
+  currentMapNumber Int               @default(1) // Which map is currently active (1 or 2)
+  firstMapLayout   String?           // JSON serialized first map layout
+  firstMapResults  String?           // JSON serialized first map symbol results
+  secondMapLayout  String?           // JSON serialized second map layout
   turnOrderA       String?           // Turn order for Song A (e.g., "012012") - player indices
   turnOrderB       String?           // Turn order for Song B (e.g., "210021") - player indices
   turnOrderC       String?           // Turn order for Song C (5-6 players only)
@@ -44,22 +50,24 @@ model Player {
   victoryPoints   Int               @default(0) // For lightning hex rewards and final scoring
   isAI            Boolean           @default(false) // True for AI players
   playerColor     String?           // Hex color code assigned at join (e.g., "#FF6B6B")
+  cardInventory   String?           // JSON: {"remaining": [1,1,1,1,2,2,2,3,3,4], "spent": []} for 3B variant
   bids            Bid[]
   influenceTokens InfluenceToken[]
   createdAt       DateTime          @default(now())
 }
 
 model Bid {
-  id        String   @id @default(cuid())
-  gameId    String
-  game      Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
-  playerId  String
-  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  round     Int      // 1=Promise Phase or 2=Bribe Phase (bidding phase within a game round)
-  gameRound Int      // Overall game round number
-  song      String   // "A", "B", "C", or "D"
-  amount    Int      // Bid amount in currency (increments of 1)
-  createdAt DateTime @default(now())
+  id            String   @id @default(cuid())
+  gameId        String
+  game          Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  playerId      String
+  player        Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  round         Int      // 1=Promise Phase or 2=Bribe Phase (bidding phase within a game round)
+  gameRound     Int      // Overall game round number
+  song          String   // "A", "B", "C", or "D"
+  amount        Int      // Bid amount in currency (increments of 1)
+  promisedCards String?  // JSON: [1,2,3] - Cards promised with this bid (for 3B variant)
+  createdAt     DateTime @default(now())
 }
 
 model InfluenceToken {
@@ -74,6 +82,9 @@ model InfluenceToken {
   orientation String   // "A" or "B" (which adjacent hex gets higher value)
   createdAt   DateTime @default(now())
 
-  @@unique([gameId, edgeId]) // Prevent duplicate tokens on same edge
+  // Note: Removed @@unique([gameId, edgeId]) constraint to support Multi-Map mode
+  // where the same edge IDs are reused across different maps (rounds 1-5 vs 6-10).
+  // Application code validates no duplicate tokens per edge within the current round.
   @@index([gameId]) // Index for faster queries
+  @@index([gameId, edgeId]) // Index for edge lookup performance
 }

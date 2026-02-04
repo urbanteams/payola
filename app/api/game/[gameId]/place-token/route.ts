@@ -137,7 +137,30 @@ export async function POST(
     const highlightedEdges = JSON.parse(game.highlightedEdges);
 
     // Validate placement
-    const existingTokens = game.influenceTokens.map((t) => ({
+    // For Multi-Map mode, only check tokens from current map
+    let relevantTokens = game.influenceTokens;
+    if (game.isMultiMap) {
+      // Helper function to calculate rounds per map
+      const getRoundsPerMap = (playerCount: number, gameVariant?: string | null): number => {
+        // 5B variant uses 4 rounds per map (5 tokens × 4 rounds = 20 edges on NYC20)
+        if (gameVariant === "5B") return 4;
+        if (playerCount === 3) return 5;
+        if (playerCount === 4) return 5; // 4-player: 5 rounds per map
+        if (playerCount === 5) return 5; // 5-player: 5 rounds per map (5 tokens × 5 = 25 edges on NYC25)
+        if (playerCount === 6) return 5;
+        return 5;
+      };
+      const realPlayersForMap = game.players.filter(p => p.name !== 'NPC');
+      const roundsPerMap = getRoundsPerMap(realPlayersForMap.length, game.gameVariant);
+
+      if (game.currentMapNumber === 1) {
+        relevantTokens = game.influenceTokens.filter(t => t.roundNumber <= roundsPerMap);
+      } else if (game.currentMapNumber === 2) {
+        relevantTokens = game.influenceTokens.filter(t => t.roundNumber >= roundsPerMap + 1);
+      }
+    }
+
+    const existingTokens = relevantTokens.map((t) => ({
       edgeId: t.edgeId,
     }));
 
@@ -205,12 +228,49 @@ export async function POST(
         currentTurnIndex: nextTurnIndex,
         placementTimeout: allTokensPlaced
           ? null
-          : new Date(Date.now() + 60000), // Reset timeout for next player (60s)
+          : new Date(Date.now() + 90000), // Reset timeout for next player (90s)
       },
     });
 
-    // If all tokens placed, auto-advance to next round
+    // If all tokens placed, call advance endpoint to handle round progression
     if (allTokensPlaced) {
+      // Call advance endpoint server-side
+      try {
+        const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+        const advanceResponse = await fetch(`${baseUrl}/api/game/${gameId}/advance`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'completeTokenPlacement' }),
+        });
+
+        if (!advanceResponse.ok) {
+          console.error('Failed to complete token placement:', await advanceResponse.text());
+        }
+      } catch (err) {
+        console.error('Error completing token placement:', err);
+      }
+
+      // Return success - advance endpoint handles game state changes
+      return NextResponse.json({
+        success: true,
+        tokenPlaced: {
+          id: newToken.id,
+          edgeId: newToken.edgeId,
+          tokenType: newToken.tokenType,
+          orientation: newToken.orientation,
+        },
+        immediateReward: immediateReward || undefined,
+        allTokensPlaced: true,
+      });
+    }
+
+    // DISABLED: Old auto-advance logic (replaced by advance endpoint call above)
+    /*
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    if (false) {
+      // Save highlighted edges before clearing (needed for Multi-Map NPC token placement)
+      const savedHighlightedEdges = game!.highlightedEdges;
+
       // Clear token placement data and advance to next round
       await prisma.game.update({
         where: { id: gameId },
@@ -233,8 +293,32 @@ export async function POST(
       // Check if map is complete (all edges filled)
       const mapLayout = deserializeMapLayout(game.mapLayout!);
       const totalEdges = mapLayout.edges.length;
+
+      // For Multi-Map mode, only count tokens from current map
+      let tokenCountWhere: any = { gameId };
+      if (game.isMultiMap) {
+        // Helper function to calculate rounds per map
+        const getRoundsPerMap = (playerCount: number, gameVariant?: string | null): number => {
+          // 5B variant uses 4 rounds per map (5 tokens × 4 rounds = 20 edges on NYC20)
+          if (gameVariant === "5B") return 4;
+          if (playerCount === 3) return 5;
+          if (playerCount === 4) return 5; // 4-player: 5 rounds per map
+          if (playerCount === 5) return 5; // 5-player standard: 5 rounds per map (5 tokens × 5 = 25 edges on NYC25)
+          if (playerCount === 6) return 5;
+          return 5;
+        };
+        const realPlayersForMap = game.players.filter(p => p.name !== 'NPC');
+        const roundsPerMap = getRoundsPerMap(realPlayersForMap.length, game.gameVariant);
+
+        if (game.currentMapNumber === 2) {
+          tokenCountWhere = { gameId, roundNumber: { gte: roundsPerMap + 1 } };
+        } else if (game.currentMapNumber === 1) {
+          tokenCountWhere = { gameId, roundNumber: { lte: roundsPerMap } };
+        }
+      }
+
       const placedTokens = await prisma.influenceToken.count({
-        where: { gameId },
+        where: tokenCountWhere,
       });
 
       if (placedTokens >= totalEdges) {
@@ -243,6 +327,221 @@ export async function POST(
           where: { id: gameId },
           data: { status: 'FINISHED' },
         });
+      } else if (game.isMultiMap) {
+        // Determine player count for this game
+        const realPlayersCheck = await prisma.player.findMany({
+          where: { gameId, name: { not: 'NPC' } }
+        });
+        const playerCount = realPlayersCheck.length;
+
+        // Helper function to calculate rounds per map
+        const getRoundsPerMap = (playerCount: number, gameVariant?: string | null): number => {
+          // 5B variant uses 4 rounds per map (5 tokens × 4 rounds = 20 edges on NYC20)
+          if (gameVariant === "5B") return 4;
+          if (playerCount === 3) return 5;
+          if (playerCount === 4) return 5; // 4-player: 5 rounds per map
+          if (playerCount === 5) return 5; // 5-player standard: 5 rounds per map (5 tokens × 5 = 25 edges on NYC25)
+          if (playerCount === 6) return 5;
+          return 5;
+        };
+        const roundsPerMap = getRoundsPerMap(playerCount, game.gameVariant);
+
+        // Check if we just completed a map (final round of that map)
+        const isMapEnd = game.roundNumber === roundsPerMap || game.roundNumber === roundsPerMap * 2;
+
+        if (isMapEnd) {
+
+          // For 5-player mode, NPCs are placed during rounds (not at map end)
+          // Skip this end-of-map NPC placement
+          if (playerCount === 5) {
+            // 5-player mode: Skip NPC placement, go directly to map completion logic
+            if (game.roundNumber === roundsPerMap) {
+            console.log(`🗺️ Round ${roundsPerMap} complete (5-player) - calculating first map results`);
+
+            // Calculate and store first map results
+            const { calculateSymbolsCollected } = await import('@/lib/game/end-game-scoring');
+            const allTokens = await prisma.influenceToken.findMany({
+              where: { gameId },
+              include: { player: true },
+            });
+
+            const allPlayers = await prisma.player.findMany({
+              where: { gameId },
+            });
+
+            // Filter out NPC player from results and map to expected format
+            const players = allPlayers
+              .filter(p => p.name !== 'NPC')
+              .map(p => ({
+                id: p.id,
+                name: p.name,
+                color: p.playerColor || '#888888'
+              }));
+
+            const symbolsCollected = calculateSymbolsCollected(
+              allTokens,
+              mapLayout,
+              players
+            );
+
+            await prisma.game.update({
+              where: { id: gameId },
+              data: {
+                status: 'FIRST_MAP_COMPLETED',
+                firstMapLayout: game.mapLayout,
+                firstMapResults: JSON.stringify(symbolsCollected),
+              },
+            });
+
+            return NextResponse.json({
+              success: true,
+              allTokensPlaced: true,
+              firstMapCompleted: true,
+              symbolsCollected,
+            });
+          } else {
+            // Second map complete - game finished
+            await prisma.game.update({
+              where: { id: gameId },
+              data: { status: 'FINISHED' },
+            });
+
+            return NextResponse.json({
+              success: true,
+              allTokensPlaced: true,
+              gameFinished: true,
+            });
+          }
+          } else {
+            // For 3, 4, 6-player modes: Place NPC tokens at end of map (skip for 3A variant)
+            const { calculateSymbolsCollected } = await import('@/lib/game/end-game-scoring');
+
+            // Find the NPC player for this game
+            const npcPlayer = await prisma.player.findFirst({
+              where: {
+                gameId,
+                name: 'NPC',
+              },
+            });
+
+            // For 3A, 3B, 4-player, and 5-player (or any game without NPC player), skip NPC token placement
+            // Place NPC tokens if NPC player exists and variant is not 3A/3B and not 4-player and not 5-player
+            if (npcPlayer && game.gameVariant !== "3A" && game.gameVariant !== "3B" && playerCount !== 4 && playerCount !== 5) {
+              console.log(`🎮 MULTI-MAP ROUND ${game.roundNumber} - Placing NPC tokens`);
+
+              // Get existing tokens from current map only
+              const whereClause = game.roundNumber === roundsPerMap
+                ? { gameId, roundNumber: { lte: roundsPerMap } }  // First map
+                : { gameId, roundNumber: { gte: roundsPerMap + 1 } }; // Second map
+
+              const existingTokens = await prisma.influenceToken.findMany({
+                where: whereClause,
+                select: { edgeId: true },
+              });
+              const placedEdges = existingTokens.map(t => t.edgeId);
+
+              // Get the highlighted edges from this round
+              const lastHighlightedEdges = savedHighlightedEdges
+                ? JSON.parse(savedHighlightedEdges)
+                : [];
+
+              // Find the highlighted edges that weren't filled by players
+              const remainingHighlightedEdges = lastHighlightedEdges.filter(
+                (edge: string) => !placedEdges.includes(edge)
+              );
+
+              // Calculate NPC token count based on player count
+              const npcTokenCount = playerCount === 3 ? 3
+                                   : playerCount === 4 ? 2
+                                   : playerCount === 5 ? 0  // 5-player handled separately
+                                   : 4;  // 6-player
+
+              // Place NPC tokens on remaining highlighted edges
+              const npcEdges = remainingHighlightedEdges.slice(0, npcTokenCount);
+              console.log(`📍 Creating ${npcEdges.length} NPC tokens on edges:`, npcEdges);
+
+              // Save NPC tokens directly (using actual NPC player ID)
+              for (const edgeId of npcEdges) {
+                await prisma.influenceToken.create({
+                  data: {
+                    gameId,
+                    playerId: npcPlayer.id, // Use actual NPC player ID
+                    roundNumber: game.roundNumber,
+                    edgeId,
+                    tokenType: '0/0',
+                    orientation: 'A',
+                  },
+                });
+              }
+            }
+
+            // Calculate and store map results (regardless of whether NPC tokens were placed)
+            if (game.roundNumber === roundsPerMap) {
+              console.log(`🗺️ Round ${roundsPerMap} complete - calculating first map results`);
+
+              // Calculate and store first map results
+              const allTokens = await prisma.influenceToken.findMany({
+                where: { gameId },
+                include: { player: true },
+              });
+
+              console.log(`📊 Found ${allTokens.length} total tokens for first map`);
+
+              const allPlayers = await prisma.player.findMany({
+                where: { gameId },
+              });
+
+              // Filter out NPC player from results and map to expected format
+              const players = allPlayers
+                .filter(p => p.name !== 'NPC')
+                .map(p => ({
+                  id: p.id,
+                  name: p.name,
+                  color: p.playerColor || '#888888'
+                }));
+
+              console.log(`👥 Calculating results for ${players.length} real players`);
+
+              const symbolsCollected = calculateSymbolsCollected(
+                allTokens,
+                mapLayout,
+                players
+              );
+
+              console.log('✅ Symbols calculated:', symbolsCollected);
+
+              await prisma.game.update({
+                where: { id: gameId },
+                data: {
+                  status: 'FIRST_MAP_COMPLETED',
+                  firstMapLayout: game.mapLayout,
+                  firstMapResults: JSON.stringify(symbolsCollected),
+                },
+              });
+
+              console.log('✅ Game status updated to FIRST_MAP_COMPLETED');
+
+              return NextResponse.json({
+                success: true,
+                allTokensPlaced: true,
+                firstMapCompleted: true,
+                symbolsCollected,
+              });
+            } else {
+              // Second map complete - game finished
+              await prisma.game.update({
+                where: { id: gameId },
+                data: { status: 'FINISHED' },
+              });
+
+              return NextResponse.json({
+                success: true,
+                allTokensPlaced: true,
+                gameFinished: true,
+              });
+            }
+          }
+        }
       } else if (game.isPOTS && game.roundNumber === game.totalRounds) {
         // POTS MODE: After final round, enter FINAL_PLACEMENT phase
         const existingTokens = await prisma.influenceToken.findMany({
@@ -257,7 +556,7 @@ export async function POST(
         console.log(`FINAL_PLACEMENT (from place-token): ${remainingEdges.length} remaining edges out of ${mapLayout.edges.length} total`);
 
         // Calculate turn order based on money remaining
-        const playersWithTokens = await prisma.player.findMany({
+        const playersWithTokensRaw = await prisma.player.findMany({
           where: { gameId },
           include: {
             influenceTokens: {
@@ -265,6 +564,9 @@ export async function POST(
             },
           },
         });
+
+        // Filter out NPC player from final placement
+        const playersWithTokens = playersWithTokensRaw.filter(p => p.name !== 'NPC');
 
         // Sort by money (descending), then by token count (ascending for ties)
         const sortedPlayers = playersWithTokens.sort((a, b) => {
@@ -319,7 +621,7 @@ export async function POST(
             highlightedEdges: JSON.stringify(remainingEdges),
             turnOrderA: JSON.stringify(finalTurnOrder),
             currentTurnIndex: 0,
-            placementTimeout: new Date(Date.now() + 60000),
+            placementTimeout: new Date(Date.now() + 90000),
           },
         });
 
@@ -342,57 +644,59 @@ export async function POST(
         } catch (err) {
           console.error('Failed to process AI token placements for FINAL_PLACEMENT:', err);
         }
-      } else {
-        // Start next round
-        const implications = await import('@/lib/game/song-implications').then(m => m.getSongImplications(game.players.length, undefined, game.isPOTS));
-        const { selectRandomVertices } = await import('@/lib/game/token-placement-logic');
-
-        const convertIndicesToPlayerIds = (indexString: string): string[] => {
-          return indexString.split('').map(indexChar => {
-            const index = parseInt(indexChar, 10);
-            return game.players[index].id;
-          });
-        };
-
-        // Generate highlighted edges for the next round
-        const existingTokens = await prisma.influenceToken.findMany({
-          where: { gameId },
-          select: { edgeId: true },
-        });
-        // Use tokensPerRound from implications (correct for all player counts)
-        const tokensPerRound = implications.tokensPerRound;
-        const highlightedEdges = selectRandomVertices(mapLayout, existingTokens, tokensPerRound);
-
-        await prisma.game.update({
-          where: { id: gameId },
-          data: {
-            status: 'ROUND1',
-            roundNumber: game.roundNumber + 1,
-            winningSong: null,
-            turnOrderA: JSON.stringify(convertIndicesToPlayerIds(implications.songA)),
-            turnOrderB: JSON.stringify(convertIndicesToPlayerIds(implications.songB)),
-            turnOrderC: implications.songC ? JSON.stringify(convertIndicesToPlayerIds(implications.songC)) : null,
-            turnOrderD: implications.songD ? JSON.stringify(convertIndicesToPlayerIds(implications.songD)) : null,
-            highlightedEdges: JSON.stringify(highlightedEdges),
-          },
-        });
       }
-    } else {
+      // For normal games and multimap: Don't auto-advance here
+      // The frontend should call advance endpoint with completeTokenPlacement action
+    }
+    */
+    // Continue with normal flow
+    {
       // Process AI token placements if next player is AI
       const nextPlayerTurn = turnOrder[nextTurnIndex];
       const nextPlayer = game.players.find(p => p.id === nextPlayerTurn.playerId);
-
-      console.log(`After human placement - Next player: ${nextPlayer?.name}, isAI: ${nextPlayer?.isAI}, Status: ${game.status}`);
 
       if (nextPlayer?.isAI) {
         try {
           // Await AI token placements to ensure they complete
           const allTokensPlaced = await processAllAITokenPlacements(gameId);
-          console.log('AI token placements completed, all tokens placed:', allTokensPlaced);
 
-          // If all tokens placed after AI turns, advance to next round
+          // If all tokens placed after AI turns, call advance endpoint
           if (allTokensPlaced) {
-            console.log('All tokens placed, advancing to next round');
+            // Call advance endpoint server-side
+            try {
+              const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+              const advanceResponse = await fetch(`${baseUrl}/api/game/${gameId}/advance`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'completeTokenPlacement' }),
+              });
+
+              if (!advanceResponse.ok) {
+                console.error('Failed to complete token placement (AI):', await advanceResponse.text());
+              }
+            } catch (err) {
+              console.error('Error completing token placement (AI):', err);
+            }
+
+            // Return success - advance endpoint handles game state changes
+            return NextResponse.json({
+              success: true,
+              tokenPlaced: {
+                id: newToken.id,
+                edgeId: newToken.edgeId,
+                tokenType: newToken.tokenType,
+                orientation: newToken.orientation,
+              },
+              immediateReward: immediateReward || undefined,
+              allTokensPlaced: true,
+            });
+          }
+
+          // DISABLED: Old AI auto-advance logic (replaced by advance endpoint call above)
+          /*
+          if (false) {
+            // Save highlighted edges before clearing (needed for Multi-Map NPC token placement)
+            const savedHighlightedEdgesAI = game.highlightedEdges;
 
             // Clear token placement data
             await prisma.game.update({
@@ -415,8 +719,32 @@ export async function POST(
               // Check if map is complete
               const mapLayout = deserializeMapLayout(game.mapLayout!);
               const totalEdges = mapLayout.edges.length;
+
+              // For Multi-Map mode, only count tokens from current map
+              let tokenCountWhereAI: any = { gameId };
+              if (game.isMultiMap) {
+                // Helper function to calculate rounds per map
+                const getRoundsPerMap = (playerCount: number, gameVariant?: string | null): number => {
+                  // 5B variant uses 4 rounds per map (5 tokens × 4 rounds = 20 edges on NYC20)
+                  if (gameVariant === "5B") return 4;
+                  if (playerCount === 3) return 5;
+                  if (playerCount === 4) return 5; // 4-player: 5 rounds per map
+                  if (playerCount === 5) return 5; // 5-player standard: 5 rounds per map (5 tokens × 5 = 25 edges on NYC25)
+                  if (playerCount === 6) return 5;
+                  return 5;
+                };
+                const realPlayersForMap = game.players.filter(p => p.name !== 'NPC');
+                const roundsPerMap = getRoundsPerMap(realPlayersForMap.length, game.gameVariant);
+
+                if (game.currentMapNumber === 2) {
+                  tokenCountWhereAI = { gameId, roundNumber: { gte: roundsPerMap + 1 } };
+                } else if (game.currentMapNumber === 1) {
+                  tokenCountWhereAI = { gameId, roundNumber: { lte: roundsPerMap } };
+                }
+              }
+
               const placedTokens = await prisma.influenceToken.count({
-                where: { gameId },
+                where: tokenCountWhereAI,
               });
 
               if (placedTokens >= totalEdges) {
@@ -424,6 +752,181 @@ export async function POST(
                   where: { id: gameId },
                   data: { status: 'FINISHED' },
                 });
+              } else if (game.isMultiMap) {
+                // Determine player count for this game (AI path)
+                const realPlayersCheckAI = await prisma.player.findMany({
+                  where: { gameId, name: { not: 'NPC' } }
+                });
+                const playerCountAI = realPlayersCheckAI.length;
+
+                // Helper function to calculate rounds per map
+                const getRoundsPerMap = (playerCount: number, gameVariant?: string | null): number => {
+                  // 5B variant uses 4 rounds per map (5 tokens × 4 rounds = 20 edges on NYC20)
+                  if (gameVariant === "5B") return 4;
+                  if (playerCount === 3) return 5;
+                  if (playerCount === 4) return 5; // 4-player: 5 rounds per map
+                  if (playerCount === 5) return 5; // 5-player standard: 5 rounds per map (5 tokens × 5 = 25 edges on NYC25)
+                  if (playerCount === 6) return 5;
+                  return 5;
+                };
+                const roundsPerMapAI = getRoundsPerMap(playerCountAI, game.gameVariant);
+
+                // Check if we just completed a map (final round of that map)
+                const isMapEndAI = game.roundNumber === roundsPerMapAI || game.roundNumber === roundsPerMapAI * 2;
+
+                if (isMapEndAI) {
+
+                  // For 5-player mode, NPCs are placed during rounds (not at map end)
+                  // Skip this end-of-map NPC placement
+                  if (playerCountAI === 5) {
+                    // 5-player mode: Skip NPC placement, go directly to map completion logic
+                    if (game.roundNumber === roundsPerMapAI) {
+                    // Calculate and store first map results
+                    const { calculateSymbolsCollected } = await import('@/lib/game/end-game-scoring');
+                    const allTokens = await prisma.influenceToken.findMany({
+                      where: { gameId },
+                      include: { player: true },
+                    });
+                    const allPlayersAI = await prisma.player.findMany({
+                      where: { gameId },
+                    });
+
+                    // Filter out NPC player from results and map to expected format
+                    const players = allPlayersAI
+                      .filter(p => p.name !== 'NPC')
+                      .map(p => ({
+                        id: p.id,
+                        name: p.name,
+                        color: p.playerColor || '#888888'
+                      }));
+
+                    const symbolsCollected = calculateSymbolsCollected(
+                      allTokens,
+                      mapLayout,
+                      players
+                    );
+
+                    await prisma.game.update({
+                      where: { id: gameId },
+                      data: {
+                        status: 'FIRST_MAP_COMPLETED',
+                        firstMapLayout: game.mapLayout,
+                        firstMapResults: JSON.stringify(symbolsCollected),
+                      },
+                    });
+                  } else {
+                    // Second map complete - game finished
+                    await prisma.game.update({
+                      where: { id: gameId },
+                      data: { status: 'FINISHED' },
+                    });
+                  }
+                  // Skip NPC placement and continue to next part
+                  } else {
+                    // For 3, 4, 6-player modes: Place NPC tokens at end of map
+                    // MULTI-MAP MODE: After final round of each map, place NPC tokens on remaining highlighted edges
+                    const { calculateSymbolsCollected } = await import('@/lib/game/end-game-scoring');
+
+                    // Find the NPC player for this game
+                    const npcPlayerAI = await prisma.player.findFirst({
+                      where: {
+                        gameId,
+                        name: 'NPC',
+                      },
+                    });
+
+                    if (!npcPlayerAI) {
+                      console.error('NPC player not found for Multi-Map game (AI path)');
+                      // Don't fail completely, just skip NPC placement
+                    } else {
+                      // Get existing tokens from current map only
+                      const whereClauseAI = game.roundNumber === roundsPerMapAI
+                        ? { gameId, roundNumber: { lte: roundsPerMapAI } }  // First map
+                        : { gameId, roundNumber: { gte: roundsPerMapAI + 1 } }; // Second map
+
+                      const existingTokens = await prisma.influenceToken.findMany({
+                        where: whereClauseAI,
+                        select: { edgeId: true },
+                      });
+                      const placedEdges = existingTokens.map(t => t.edgeId);
+
+                      // Get the highlighted edges from this round
+                      const lastHighlightedEdges = savedHighlightedEdgesAI
+                        ? JSON.parse(savedHighlightedEdgesAI)
+                        : [];
+
+                      // Find the highlighted edges that weren't filled by players
+                      const remainingHighlightedEdges = lastHighlightedEdges.filter(
+                        (edge: string) => !placedEdges.includes(edge)
+                      );
+
+                      // Calculate NPC token count based on player count
+                      const npcTokenCountAI = playerCountAI === 3 ? 3
+                                           : playerCountAI === 4 ? 0  // 4-player: NYC30 fills perfectly (6 × 5 = 30)
+                                           : playerCountAI === 5 ? 0  // 5-player: NYC25 fills perfectly (5 × 5 = 25)
+                                           : 4;  // 6-player
+
+                      // Place NPC tokens on remaining highlighted edges
+                      const npcEdges = remainingHighlightedEdges.slice(0, npcTokenCountAI);
+                      console.log(`📍 Creating ${npcEdges.length} NPC tokens (AI path) on edges:`, npcEdges);
+
+                      // Save NPC tokens directly (using actual NPC player ID)
+                      for (const edgeId of npcEdges) {
+                        await prisma.influenceToken.create({
+                          data: {
+                            gameId,
+                            playerId: npcPlayerAI.id, // Use actual NPC player ID
+                            roundNumber: game.roundNumber,
+                            edgeId,
+                            tokenType: '0/0',
+                            orientation: 'A',
+                          },
+                        });
+                      }
+                    }
+
+                    if (game.roundNumber === roundsPerMapAI) {
+                      // Calculate and store first map results
+                      const allTokens = await prisma.influenceToken.findMany({
+                        where: { gameId },
+                        include: { player: true },
+                      });
+                      const allPlayersAI = await prisma.player.findMany({
+                        where: { gameId },
+                      });
+
+                      // Filter out NPC player from results and map to expected format
+                      const players = allPlayersAI
+                        .filter(p => p.name !== 'NPC')
+                        .map(p => ({
+                          id: p.id,
+                          name: p.name,
+                          color: p.playerColor || '#888888'
+                        }));
+
+                      const symbolsCollected = calculateSymbolsCollected(
+                        allTokens,
+                        mapLayout,
+                        players
+                      );
+
+                      await prisma.game.update({
+                        where: { id: gameId },
+                        data: {
+                          status: 'FIRST_MAP_COMPLETED',
+                          firstMapLayout: game.mapLayout,
+                          firstMapResults: JSON.stringify(symbolsCollected),
+                        },
+                      });
+                    } else {
+                      // Second map complete - game finished
+                      await prisma.game.update({
+                        where: { id: gameId },
+                        data: { status: 'FINISHED' },
+                      });
+                    }
+                  }
+                }
               } else if (game.isPOTS && game.roundNumber === game.totalRounds) {
                 // POTS MODE: After final round, enter FINAL_PLACEMENT phase
                 const existingTokens = await prisma.influenceToken.findMany({
@@ -500,7 +1003,7 @@ export async function POST(
                     highlightedEdges: JSON.stringify(remainingEdges),
                     turnOrderA: JSON.stringify(finalTurnOrder),
                     currentTurnIndex: 0,
-                    placementTimeout: new Date(Date.now() + 60000),
+                    placementTimeout: new Date(Date.now() + 90000),
                   },
                 });
 
@@ -523,42 +1026,12 @@ export async function POST(
                 } catch (err) {
                   console.error('Failed to process AI token placements for FINAL_PLACEMENT (from AI completion):', err);
                 }
-              } else {
-              const implications = await import('@/lib/game/song-implications').then(m => m.getSongImplications(game.players.length, undefined, game.isPOTS));
-              const { selectRandomVertices } = await import('@/lib/game/token-placement-logic');
-
-              const convertIndicesToPlayerIds = (indexString: string): string[] => {
-                return indexString.split('').map(indexChar => {
-                  const index = parseInt(indexChar, 10);
-                  return game.players[index].id;
-                });
-              };
-
-              // Generate highlighted edges for the next round
-              const existingTokens = await prisma.influenceToken.findMany({
-                where: { gameId },
-                select: { edgeId: true },
-              });
-              // Use tokensPerRound from implications (correct for all player counts)
-              const tokensPerRound = implications.tokensPerRound;
-              const highlightedEdges = selectRandomVertices(mapLayout, existingTokens, tokensPerRound);
-
-                await prisma.game.update({
-                  where: { id: gameId },
-                  data: {
-                    status: 'ROUND1',
-                    roundNumber: game.roundNumber + 1,
-                    winningSong: null,
-                    turnOrderA: JSON.stringify(convertIndicesToPlayerIds(implications.songA)),
-                    turnOrderB: JSON.stringify(convertIndicesToPlayerIds(implications.songB)),
-                    turnOrderC: implications.songC ? JSON.stringify(convertIndicesToPlayerIds(implications.songC)) : null,
-                    turnOrderD: implications.songD ? JSON.stringify(convertIndicesToPlayerIds(implications.songD)) : null,
-                    highlightedEdges: JSON.stringify(highlightedEdges),
-                  },
-                });
               }
+              // For normal games and multimap: Don't auto-advance here
+              // The frontend should call advance endpoint with completeTokenPlacement action
             }
           }
+          */
         } catch (err) {
           console.error('Error processing AI token placements:', err);
         }

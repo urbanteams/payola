@@ -13,14 +13,33 @@ import { RoundTransitionMapView } from "./RoundTransitionMapView";
 import { TabViewSwitcher } from "./TabViewSwitcher";
 import { TokenPlacementPhase } from "./TokenPlacementPhase";
 import { MapViewer } from "./MapViewer";
+import { FirstMapCompletedScreen } from "./FirstMapCompletedScreen";
+import { FinalResultsMultiMap } from "./FinalResultsMultiMap";
+import { FirstMapResultsTab } from "./FirstMapResultsTab";
 import { Card, CardContent } from "@/components/ui/Card";
 import { calculateSongTotals, isTieRequiringWheel, getWheelSongs } from "@/lib/game/bidding-logic";
 import { deserializeMapLayout } from "@/lib/game/map-generator";
 import { calculateSymbolsCollected, calculateBuzzHubScores } from "@/lib/game/end-game-scoring";
 import { HexIcon } from "./HexIcon";
+import { deserializeInventory, CardInventory } from "@/lib/game/card-inventory";
 
 export function GameBoard() {
   const { gameState, loading, error, submitBid, advanceGame } = useGame();
+
+  // Debug: Log game state to browser console
+  React.useEffect(() => {
+    if (gameState?.game) {
+      console.error('🎮 GAME STATE:', {
+        roundNumber: gameState.game.roundNumber,
+        isMultiMap: gameState.game.isMultiMap,
+        isPOTS: gameState.game.isPOTS,
+        hasTurnOrderA: !!gameState.game.turnOrderA,
+        hasTurnOrderB: !!gameState.game.turnOrderB,
+        hasTurnOrderC: !!gameState.game.turnOrderC,
+        hasTurnOrderD: !!gameState.game.turnOrderD,
+      });
+    }
+  }, [gameState?.game.roundNumber, gameState?.game.isMultiMap]);
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [showEndGameConfirm, setShowEndGameConfirm] = useState(false);
   const [showWheel, setShowWheel] = useState(false);
@@ -29,7 +48,7 @@ export function GameBoard() {
   const [hasShownInitialMap, setHasShownInitialMap] = useState(false);
   const [showRoundTransition, setShowRoundTransition] = useState(false);
   const [previousRound, setPreviousRound] = useState(1);
-  const [currentView, setCurrentView] = useState<'game' | 'map'>('game');
+  const [currentView, setCurrentView] = useState<'game' | 'map' | 'firstMap'>('game');
 
   // Show initial map view when game starts
   useEffect(() => {
@@ -47,7 +66,9 @@ export function GameBoard() {
   // Check for tie requiring wheel when entering RESULTS state
   useEffect(() => {
     if (gameState?.game.status === "RESULTS" && gameState.allBids && !hasShownWheel) {
-      const songTotals = calculateSongTotals(gameState.allBids);
+      // Filter out NPC bids before calculating totals
+      const filteredBids = gameState.allBids.filter(bid => bid.playerName !== 'NPC');
+      const songTotals = calculateSongTotals(filteredBids);
       // Dynamically determine available songs based on which turn orders exist
       const availableSongs: Array<"A" | "B" | "C" | "D"> = [];
       if (gameState.game.turnOrderA) availableSongs.push("A");
@@ -99,8 +120,8 @@ export function GameBoard() {
     }
   };
 
-  const handleSubmitBid = async (song: string, amount: number) => {
-    await submitBid(song, amount);
+  const handleSubmitBid = async (song: string, amount: number, cards?: number[]) => {
+    await submitBid(song, amount, cards);
   };
 
   const handleNextRound = async () => {
@@ -132,6 +153,17 @@ export function GameBoard() {
 
   const handleContinueFromRoundTransition = () => {
     setShowRoundTransition(false);
+  };
+
+  const handleAdvanceToSecondMap = async () => {
+    setIsAdvancing(true);
+    try {
+      await advanceGame("startSecondMap");
+    } catch (err) {
+      console.error("Failed to advance to second map:", err);
+    } finally {
+      setIsAdvancing(false);
+    }
   };
 
   if (loading && !gameState) {
@@ -171,9 +203,45 @@ export function GameBoard() {
     return null;
   }
 
-  const { game, players, currentBid, biddingState, allBids, promisePhaseBids } = gameState;
+  const { game, players: allPlayers, currentBid, biddingState, allBids: allBidsRaw, promisePhaseBids: allPromisePhaseBids } = gameState;
+
+  // Filter out NPC player from display
+  const players = allPlayers.filter(p => p.name !== 'NPC');
+
+  // Filter out NPC bids from all bids and promise phase
+  const allBids = allBidsRaw?.filter(bid => bid.playerName !== 'NPC') || null;
+  const promisePhaseBids = allPromisePhaseBids?.filter(bid => bid.playerName !== 'NPC') || null;
+
   const myPlayer = players.find(p => p.isMe);
   const currencyBalance = myPlayer?.currencyBalance || 0;
+
+  // Check if card-based variant (3B, 4B, 5B, 6B)
+  const isCardVariant = game.gameVariant === "3B" || game.gameVariant === "4B" || game.gameVariant === "5B" || game.gameVariant === "6B";
+  const is3BVariant = isCardVariant; // For backward compatibility with prop names
+
+  // Parse card inventory for card variants
+  let cardInventory: CardInventory | null = null;
+  if (isCardVariant && myPlayer?.cardInventory) {
+    try {
+      cardInventory = deserializeInventory(myPlayer.cardInventory);
+    } catch (error) {
+      console.error("Failed to parse card inventory:", error);
+    }
+  }
+
+  // Helper function to calculate rounds per map for Multi-Map mode
+  const getRoundsPerMap = (playerCount: number, gameVariant?: string | null): number => {
+    // 5B variant uses 4 rounds per map (5 tokens × 4 rounds = 20 edges on NYC20)
+    if (gameVariant === "5B") return 4;
+    if (playerCount === 3) return 5;
+    if (playerCount === 4) return 5;
+    if (playerCount === 5) return 5;
+    if (playerCount === 6) return 5;
+    return 5;
+  };
+
+  // Calculate rounds per map for token filtering
+  const roundsPerMap = game.isMultiMap ? getRoundsPerMap(players.length, game.gameVariant) : 5;
 
   // LOBBY state
   if (game.status === "LOBBY") {
@@ -190,10 +258,19 @@ export function GameBoard() {
   // Round Transition Map View - Show when new round starts (after round 1)
   if (showRoundTransition && game.mapLayout && game.highlightedEdges) {
     const highlightedEdges = JSON.parse(game.highlightedEdges);
+
+    // For Multi-Map mode, filter tokens based on current map
+    const allTokens = gameState.tokens || [];
+    const filteredTokens = game.isMultiMap && game.currentMapNumber === 2
+      ? allTokens.filter(t => t.roundNumber >= roundsPerMap + 1) // Second map
+      : game.isMultiMap && game.currentMapNumber === 1
+      ? allTokens.filter(t => t.roundNumber <= roundsPerMap) // First map
+      : allTokens; // Normal mode: show all tokens
+
     return (
       <RoundTransitionMapView
         mapLayout={deserializeMapLayout(game.mapLayout)}
-        tokens={gameState.tokens?.map(t => ({
+        tokens={filteredTokens.map(t => ({
           id: t.id,
           edgeId: t.edgeId as any,
           playerId: t.playerId,
@@ -202,10 +279,12 @@ export function GameBoard() {
           tokenType: t.tokenType as any,
           orientation: t.orientation as any,
           roundNumber: t.roundNumber,
-        })) || []}
+        }))}
         highlightedEdges={highlightedEdges}
         roundNumber={game.roundNumber}
         onContinue={handleContinueFromRoundTransition}
+        isMultiMap={game.isMultiMap}
+        totalRounds={game.totalRounds ?? undefined}
       />
     );
   }
@@ -218,6 +297,7 @@ export function GameBoard() {
         mapLayout={deserializeMapLayout(game.mapLayout)}
         highlightedEdges={highlightedEdges}
         onContinue={handleContinueFromInitialMap}
+        isMultiMap={game.isMultiMap}
       />
     );
   }
@@ -234,35 +314,60 @@ export function GameBoard() {
 
         {/* Tab View Switcher - Show during bidding, results, and finished states */}
         {(game.status === "ROUND1" || game.status === "ROUND2" || game.status === "RESULTS" || game.status === "FINISHED") && game.mapLayout && (
-          <TabViewSwitcher currentView={currentView} onViewChange={setCurrentView} />
+          <TabViewSwitcher
+            currentView={currentView}
+            onViewChange={setCurrentView}
+            showFirstMapTab={game.isMultiMap && game.currentMapNumber === 2 && game.firstMapResults !== null}
+          />
         )}
 
         {/* Map View - Show when map view is selected */}
-        {currentView === 'map' && game.mapLayout && game.status !== "TOKEN_PLACEMENT" && game.status !== "FINAL_PLACEMENT" && (
-          <Card className="mb-6">
-            <CardContent className="py-8">
-              <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center">Game Map</h2>
-              <MapViewer
-                mapLayout={deserializeMapLayout(game.mapLayout)}
-                tokens={gameState.tokens?.map(t => ({
-                  id: t.id,
-                  edgeId: t.edgeId as any,
-                  playerId: t.playerId,
-                  playerName: t.playerName,
-                  playerColor: t.playerColor,
-                  tokenType: t.tokenType as any,
-                  orientation: t.orientation as any,
-                  roundNumber: t.roundNumber,
-                })) || []}
-                highlightedEdges={game.highlightedEdges ? JSON.parse(game.highlightedEdges) : []}
-              />
-              <div className="mt-4 text-center">
-                <p className="text-gray-600">
-                  Switch to <strong>Game View</strong> to continue playing
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+        {currentView === 'map' && game.mapLayout && game.status !== "TOKEN_PLACEMENT" && game.status !== "FINAL_PLACEMENT" && (() => {
+          // For Multi-Map mode, filter tokens based on current map
+          const allTokensMapView = gameState.tokens || [];
+          const filteredTokensMapView = game.isMultiMap && game.currentMapNumber === 2
+            ? allTokensMapView.filter(t => t.roundNumber >= roundsPerMap + 1) // Second map
+            : game.isMultiMap && game.currentMapNumber === 1
+            ? allTokensMapView.filter(t => t.roundNumber <= roundsPerMap) // First map
+            : allTokensMapView; // Normal mode: show all tokens
+
+          return (
+            <Card className="mb-6">
+              <CardContent className="py-8">
+                <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center">
+                  {game.isMultiMap
+                    ? game.currentMapNumber === 1
+                      ? "First Map"
+                      : "Second Map"
+                    : "Game Map"}
+                </h2>
+                <MapViewer
+                  mapLayout={deserializeMapLayout(game.mapLayout)}
+                  tokens={filteredTokensMapView.map(t => ({
+                    id: t.id,
+                    edgeId: t.edgeId as any,
+                    playerId: t.playerId,
+                    playerName: t.playerName,
+                    playerColor: t.playerColor,
+                    tokenType: t.tokenType as any,
+                    orientation: t.orientation as any,
+                    roundNumber: t.roundNumber,
+                  }))}
+                  highlightedEdges={game.highlightedEdges ? JSON.parse(game.highlightedEdges) : []}
+                />
+                <div className="mt-4 text-center">
+                  <p className="text-gray-600">
+                    Switch to <strong>Game View</strong> to continue playing
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })()}
+
+        {/* First Map Results Tab - Show in Multi-Map mode during second map */}
+        {currentView === 'firstMap' && game.isMultiMap && game.firstMapResults && (
+          <FirstMapResultsTab firstMapResults={game.firstMapResults} />
         )}
 
         {/* Game View Content */}
@@ -321,7 +426,7 @@ export function GameBoard() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column - Player List */}
           <div>
-            <PlayerList players={players} currentRound={game.roundNumber} gameStatus={game.status} />
+            <PlayerList players={players} currentRound={game.roundNumber} gameStatus={game.status} isMultiMap={game.isMultiMap} totalRounds={game.totalRounds ?? undefined} is3BVariant={is3BVariant} />
           </div>
 
           {/* Center Column - Main Content */}
@@ -371,6 +476,11 @@ export function GameBoard() {
                       turnOrderC={game.turnOrderC}
                       turnOrderD={game.turnOrderD}
                       isPOTS={game.isPOTS}
+                      cardInventory={cardInventory}
+                      is3BVariant={is3BVariant}
+                      currentRound={game.roundNumber}
+                      totalRounds={game.totalRounds ?? 10}
+                      gameVariant={game.gameVariant}
                     />
                   </div>
                 ) : biddingState.waitingForRound2 ? (
@@ -400,6 +510,11 @@ export function GameBoard() {
                     turnOrderC={game.turnOrderC}
                     turnOrderD={game.turnOrderD}
                     isPOTS={game.isPOTS}
+                    cardInventory={cardInventory}
+                    is3BVariant={is3BVariant}
+                    currentRound={game.roundNumber}
+                    totalRounds={game.totalRounds ?? 10}
+                    gameVariant={game.gameVariant}
                   />
                 )}
               </>
@@ -439,35 +554,74 @@ export function GameBoard() {
                     turnOrderD={game.turnOrderD}
                     isPOTS={game.isPOTS}
                     currentRound={game.roundNumber}
+                    totalRounds={game.totalRounds ?? undefined}
                   />
                 )}
               </>
             )}
 
             {/* TOKEN_PLACEMENT and FINAL_PLACEMENT */}
-            {(game.status === "TOKEN_PLACEMENT" || game.status === "FINAL_PLACEMENT") && (
-              <TokenPlacementPhase
+            {(game.status === "TOKEN_PLACEMENT" || game.status === "FINAL_PLACEMENT") && (() => {
+              // For Multi-Map mode, filter tokens based on current map
+              const allTokensPlacement = gameState.tokens || [];
+              const filteredTokensPlacement = game.isMultiMap && game.currentMapNumber === 2
+                ? allTokensPlacement.filter(t => t.roundNumber >= roundsPerMap + 1) // Second map
+                : game.isMultiMap && game.currentMapNumber === 1
+                ? allTokensPlacement.filter(t => t.roundNumber <= roundsPerMap) // First map
+                : allTokensPlacement; // Normal mode: show all tokens
+
+              return (
+                <TokenPlacementPhase
+                  gameId={game.id}
+                  players={players}
+                  mapLayout={game.mapLayout}
+                  highlightedEdges={game.highlightedEdges}
+                  currentTurnIndex={game.currentTurnIndex ?? 0}
+                  winningSong={game.winningSong}
+                  turnOrderA={game.turnOrderA || []}
+                  turnOrderB={game.turnOrderB || []}
+                  turnOrderC={game.turnOrderC}
+                  turnOrderD={game.turnOrderD}
+                  placementTimeout={game.placementTimeout}
+                  tokens={filteredTokensPlacement}
+                  isFinalPlacement={game.status === "FINAL_PLACEMENT"}
+                  isMultiMap={game.isMultiMap}
+                  currentMapNumber={game.currentMapNumber}
+                  firstMapResults={game.firstMapResults}
+                  onTokenPlaced={() => {
+                    // Refetch will happen automatically via polling
+                  }}
+                />
+              );
+            })()}
+
+            {/* FIRST_MAP_COMPLETED - Multi-Map Mode only */}
+            {game.status === "FIRST_MAP_COMPLETED" && game.isMultiMap && game.firstMapResults && game.firstMapLayout && (
+              <FirstMapCompletedScreen
                 gameId={game.id}
+                firstMapResults={game.firstMapResults}
+                firstMapLayout={game.firstMapLayout}
                 players={players}
-                mapLayout={game.mapLayout}
-                highlightedEdges={game.highlightedEdges}
-                currentTurnIndex={game.currentTurnIndex ?? 0}
-                winningSong={game.winningSong}
-                turnOrderA={game.turnOrderA || []}
-                turnOrderB={game.turnOrderB || []}
-                turnOrderC={game.turnOrderC}
-                turnOrderD={game.turnOrderD}
-                placementTimeout={game.placementTimeout}
                 tokens={gameState.tokens || []}
-                isFinalPlacement={game.status === "FINAL_PLACEMENT"}
-                onTokenPlaced={() => {
-                  // Refetch will happen automatically via polling
-                }}
+                onAdvanceToSecondMap={handleAdvanceToSecondMap}
+                isAdvancing={isAdvancing}
               />
             )}
 
-            {/* FINISHED */}
-            {game.status === "FINISHED" && (
+            {/* FINISHED - Multi-Map Mode */}
+            {game.status === "FINISHED" && game.isMultiMap && game.firstMapResults && game.firstMapLayout && game.secondMapLayout && (
+              <FinalResultsMultiMap
+                gameId={game.id}
+                firstMapResults={game.firstMapResults}
+                firstMapLayout={game.firstMapLayout}
+                secondMapLayout={game.secondMapLayout}
+                players={players}
+                tokens={gameState.tokens || []}
+              />
+            )}
+
+            {/* FINISHED - Standard Mode */}
+            {game.status === "FINISHED" && !game.isMultiMap && (
               <>
                 <Card className="mb-6">
                   <CardContent className="py-12 text-center">

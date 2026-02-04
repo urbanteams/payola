@@ -156,6 +156,25 @@ function InfluenceToken({ token, hexSize }: { token: InfluenceTokenData; hexSize
 
   if (!pos) return null;
 
+  // Check if this is an NPC token (by player name)
+  const isNPCToken = token.playerName === 'NPC';
+
+  if (isNPCToken) {
+    // Render NPC token as a white circle with no numbers
+    return (
+      <g className="influence-token-npc">
+        <circle
+          cx={pos.x}
+          cy={pos.y}
+          r={TOKEN_RADIUS}
+          fill="white"
+          stroke="#888"
+          strokeWidth="2"
+        />
+      </g>
+    );
+  }
+
   const [valueA, valueB] = token.tokenType.split('/').map(Number);
 
   // Use player color if available, otherwise default to yellow

@@ -5,12 +5,19 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import {
+  deserializeInventory,
+  serializeInventory,
+  spendCards,
+  calculateTotalValue,
+} from "./card-inventory";
+import { selectCardsForAmount, determineAIBidAmount } from "./ai-card-selection";
 
 /**
  * Generate a random bid for an AI player
  * Strategy: Random amount between 0 and available balance, random song
  * Never bids on songs with fewer token placements
- * In final round, promises all money
+ * In final round, promises all money (except in POTS mode where money determines final placement turn order)
  */
 function generateAIBid(
   currencyBalance: number,
@@ -23,8 +30,93 @@ function generateAIBid(
   totalRounds: number,
   biddingRound: number,
   round1Bids: Array<{ playerId: string; song: string; amount: number }>,
-  aiPlayers: Array<{ id: string }>
-): { song: "A" | "B" | "C" | "D", amount: number } {
+  aiPlayers: Array<{ id: string }>,
+  isPOTS: boolean,
+  cardInventory: string | null = null,
+  is3BVariant: boolean = false,
+  gameVariant: string | null = null
+): { song: "A" | "B" | "C" | "D", amount: number, cards?: number[] } {
+  // 3B VARIANT: Use card-based bidding
+  if (is3BVariant && cardInventory) {
+    const inventory = deserializeInventory(cardInventory);
+    const totalAvailable = calculateTotalValue(inventory.remaining);
+
+    // Determine available songs
+    let availableSongs: ("A" | "B" | "C" | "D")[] = ["A", "B"];
+    if (turnOrderC) availableSongs.push("C");
+    if (turnOrderD) availableSongs.push("D");
+
+    // Filter out songs with fewer token placements
+    const songTokenCounts: Record<"A" | "B" | "C" | "D", number> = {
+      A: turnOrderA.filter(id => id === playerId).length,
+      B: turnOrderB.filter(id => id === playerId).length,
+      C: turnOrderC ? turnOrderC.filter(id => id === playerId).length : 0,
+      D: turnOrderD ? turnOrderD.filter(id => id === playerId).length : 0,
+    };
+    const maxTokens = Math.max(...availableSongs.map(song => songTokenCounts[song]));
+    availableSongs = availableSongs.filter(song => songTokenCounts[song] === maxTokens);
+    const randomSong = availableSongs[Math.floor(Math.random() * availableSongs.length)];
+
+    // Check if AI has any cards
+    if (totalAvailable === 0) {
+      console.log(`[AI 3B Bidding] Player has no cards, can only bid $0 to ${randomSong}`);
+      return { song: randomSong, amount: 0, cards: [] };
+    }
+
+    // Determine bid amount based on card inventory
+    const isAISoloBriber = biddingRound === 2 && round1Bids.filter(b => b.amount === 0).length === 1 &&
+      round1Bids.find(b => b.amount === 0)?.playerId === playerId;
+
+    let winningSongTotal = 0;
+    let preferredSongTotal = 0;
+    if (isAISoloBriber) {
+      const songTotals: Record<"A" | "B" | "C" | "D", number> = { A: 0, B: 0, C: 0, D: 0 };
+      for (const bid of round1Bids) {
+        songTotals[bid.song as "A" | "B" | "C" | "D"] += bid.amount;
+      }
+      winningSongTotal = Math.max(...availableSongs.map(s => songTotals[s]));
+      preferredSongTotal = songTotals[randomSong];
+    }
+
+    const targetAmount = determineAIBidAmount(
+      inventory,
+      biddingRound,
+      currentRound,
+      totalRounds,
+      round1Bids,
+      isAISoloBriber,
+      winningSongTotal,
+      preferredSongTotal
+    );
+
+    // Select cards to match target amount
+    // Determine max cards based on variant and round
+    const isFinalRound = currentRound >= totalRounds;
+    let maxCards: number;
+    if (isFinalRound) {
+      maxCards = Infinity; // Final round: unlimited cards for all variants
+    } else if (gameVariant === "5B") {
+      // 5B variant: R1-4 = 1 card, R5-7 = 2 cards, R8 = unlimited
+      maxCards = currentRound <= 4 ? 1 : 2;
+    } else {
+      // Default (3B, 4B, 6B): R1-5 = 1 card, R6+ = 2 cards, final = unlimited
+      maxCards = currentRound <= 5 ? 1 : 2;
+    }
+    const selectedCards = selectCardsForAmount(inventory, targetAmount, "random", maxCards);
+    const actualAmount = calculateTotalValue(selectedCards);
+
+    // CRITICAL FIX: If we're a solo briber and can't bid enough to actually win, bid $0 instead
+    // This prevents pointless bribes where we spend cards but still lose
+    if (isAISoloBriber && actualAmount > 0 && actualAmount < targetAmount) {
+      console.log(`[AI 3B Solo Briber] Cannot bid enough to win (need $${targetAmount}, can only bid $${actualAmount}). Bidding $0 instead.`);
+      return { song: randomSong, amount: 0, cards: [] };
+    }
+
+    console.log(`[AI 3B Bidding] Player bidding $${actualAmount} to ${randomSong} with cards: ${JSON.stringify(selectedCards)}`);
+
+    return { song: randomSong, amount: actualAmount, cards: selectedCards };
+  }
+
   // CRITICAL: If AI has no money, can only bid $0
   if (currencyBalance <= 0) {
     // Determine available songs for selection (even though bidding $0)
@@ -70,8 +162,9 @@ function generateAIBid(
   // Random song from available options
   const randomSong = availableSongs[Math.floor(Math.random() * availableSongs.length)];
 
-  // In the final round (round 6), promise all money
-  if (currentRound >= totalRounds) {
+  // In the final round, promise all money ONLY if NOT in POTS mode
+  // In POTS mode, money determines turn order in final placement phase, so AI should save some
+  if (currentRound >= totalRounds && !isPOTS) {
     return { song: randomSong, amount: currencyBalance };
   }
 
@@ -221,13 +314,15 @@ export async function processAIBids(gameId: string): Promise<void> {
     const turnOrderC = game.turnOrderC ? JSON.parse(game.turnOrderC) : null;
     const turnOrderD = game.turnOrderD ? JSON.parse(game.turnOrderD) : null;
 
+    const is3BVariant = game.gameVariant === "3B" || game.gameVariant === "4B" || game.gameVariant === "5B" || game.gameVariant === "6B";
+
     for (const aiPlayer of aiPlayers) {
       // Check if AI player needs to bid in current round
       const hasRound1Bid = round1Bids.find(b => b.playerId === aiPlayer.id);
 
       if (biddingRound === 1 && !hasRound1Bid) {
         // AI needs to submit Round 1 bid
-        const { song, amount } = generateAIBid(
+        const { song, amount, cards } = generateAIBid(
           aiPlayer.currencyBalance,
           aiPlayer.id,
           turnOrderA,
@@ -238,7 +333,11 @@ export async function processAIBids(gameId: string): Promise<void> {
           totalRounds,
           biddingRound,
           round1Bids,
-          aiPlayers
+          aiPlayers,
+          game.isPOTS,
+          aiPlayer.cardInventory,
+          is3BVariant,
+          game.gameVariant
         );
 
         await prisma.bid.create({
@@ -249,8 +348,11 @@ export async function processAIBids(gameId: string): Promise<void> {
             gameRound: game.roundNumber,
             song,
             amount,
+            promisedCards: is3BVariant && cards ? JSON.stringify(cards) : null,
           },
         });
+
+        // For Round 1 (promise phase), cards are NOT spent yet - wait for results
 
         console.log(`AI ${aiPlayer.name} bid ${amount} on Song ${song} in Round 1 (round ${game.roundNumber}/${totalRounds})`);
       } else if (biddingRound === 2 && hasRound1Bid && hasRound1Bid.amount === 0) {
@@ -258,7 +360,7 @@ export async function processAIBids(gameId: string): Promise<void> {
         const hasRound2Bid = currentRoundBids.find(b => b.playerId === aiPlayer.id && b.round === 2);
 
         if (!hasRound2Bid) {
-          const { song, amount } = generateAIBid(
+          const { song, amount, cards } = generateAIBid(
             aiPlayer.currencyBalance,
             aiPlayer.id,
             turnOrderA,
@@ -269,7 +371,11 @@ export async function processAIBids(gameId: string): Promise<void> {
             totalRounds,
             biddingRound,
             round1Bids,
-            aiPlayers
+            aiPlayers,
+            game.isPOTS,
+            aiPlayer.cardInventory,
+            is3BVariant,
+            game.gameVariant
           );
 
           await prisma.bid.create({
@@ -280,8 +386,12 @@ export async function processAIBids(gameId: string): Promise<void> {
               gameRound: game.roundNumber,
               song,
               amount,
+              promisedCards: is3BVariant && cards ? JSON.stringify(cards) : null,
             },
           });
+
+          // For card variants: Cards are NOT spent immediately in Round 2
+          // They will be spent when results are determined (all Round 2 bids spend their cards)
 
           console.log(`AI ${aiPlayer.name} bid ${amount} on Song ${song} in Round 2 (round ${game.roundNumber}/${totalRounds})`);
         }

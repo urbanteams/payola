@@ -1,12 +1,380 @@
 # Payola Hexagonal Map Feature - Project Status
 
-**Last Updated:** January 21, 2026 (Session 8 - VS AI Mode Unified with POTS Patterns)
-**Branch:** `POTS`
-**Status:** VS AI Mode Complete (Uses POTS patterns for all player counts)
+**Last Updated:** February 2, 2026 (Session 10 - 3B Card Variant Implementation)
+**Branch:** `mini`
+**Status:** Multi-Map Mode Complete + Card Variant System Implemented
 
 ---
 
-## 📝 Session 8 Progress Summary (Most Recent)
+## 📝 Session 10 Progress Summary (Most Recent)
+
+**Work Completed in This Session:**
+
+### 3B Multi-Map Card Variant Implementation ✅
+
+**Overview:**
+Implemented a complete card-based bidding system for 3-player multi-map games. Replaces currency with a fixed set of cards that players use to bid. Spent cards are permanently removed and visible to all players.
+
+**Key Features:**
+- **Starting Inventory:** Each player gets 2×$1, 2×$2, 2×$3, 2×$4 cards (total value: $20)
+- **Round-Based Limits:**
+  - Rounds 1-5 (First Map): Can use ONLY 1 card per bid
+  - Rounds 6-10 (Second Map): Can use UP TO 2 cards per bid
+- **Permanent Cards:** Spent cards removed forever (persist across maps)
+- **Full Visibility:** All players can see which cards everyone has spent
+- **Otherwise Identical:** Same as standard 3-player multi-map (NYC18 maps, 3 tokens/round)
+
+**Files Created:**
+1. **`lib/game/card-inventory.ts`** (155 lines) - Core card management utilities
+   - `createInitialInventory()` - Initialize player cards
+   - `validateCardSelection()` - Validate selected cards
+   - `spendCards()` - Move cards from remaining to spent
+   - `calculateTotalValue()` - Sum card denominations
+   - Serialization/deserialization helpers
+
+2. **`lib/game/ai-card-selection.ts`** (90 lines) - AI card selection logic
+   - `selectCardsForAmount()` - Select best card(s) for target amount
+   - Single card logic (rounds 1-5): exact → closest → smallest
+   - Two card logic (rounds 6-10): exact pair → best combo → fallback
+   - `determineAIBidAmount()` - Determine AI bid strategy
+
+3. **`components/game/CardSelector.tsx`** (135 lines) - Card selection UI
+   - Visual card buttons with click to select/deselect
+   - Round-based enforcement (1 or 2 cards max)
+   - Shows total bid amount
+   - Dynamic help text based on round
+
+**Files Modified:**
+1. **`lib/game/ai-bidding.ts`** - Updated to support card-based bidding
+   - Calculate maxCards based on round (1 for R1-5, 2 for R6-10)
+   - Pass maxCards to card selection function
+
+2. **`components/game/BiddingPanel.tsx`** - Integrated CardSelector
+   - Added currentRound prop
+   - Conditional rendering: CardSelector for 3B, currency input for standard
+
+3. **`components/game/GameBoard.tsx`** - Pass currentRound to BiddingPanel
+   - Updated both Round 1 and Round 2 BiddingPanel instances
+
+4. **`components/game/PlayerList.tsx`** - Show spent cards for ALL players
+   - Removed `!player.isMe` condition
+   - Human player now sees their own spent cards alongside AI players
+
+5. **`app/api/game/[gameId]/bid/route.ts`** - Backend validation
+   - Enforce round-based card limits (1 for R1-5, 2 for R6-10)
+   - Validate card availability in inventory
+   - Verify card total matches bid amount
+   - Update player inventory after spending cards
+
+6. **`app/api/game/create-multi-map/route.ts`** - Initialize card inventory
+   - Create card inventory for players in 3B variant
+
+7. **`prisma/schema.prisma`** - Added cardInventory field
+   - `cardInventory String?` on Player model
+   - Stores JSON-serialized CardInventory
+
+**Database Changes:**
+- **Migration:** `20260202070335_add_3b_variant_card_inventory`
+- **Field:** `Player.cardInventory` - Stores `{remaining: number[], spent: number[]}`
+
+**Architecture Highlights:**
+- **Three-Layer Validation:**
+  1. Frontend: CardSelector enforces selection limits
+  2. API: Backend validates card count, availability, totals
+  3. Database: Inventory persisted as JSON
+
+- **Round-Based Progression:** Creates strategic depth
+  - Early game: Conservative, preserve high cards
+  - Late game: Can combine cards for precise/aggressive bids
+
+- **AI Integration:** Uses existing bidding logic
+  - Determines target bid amount with currency logic
+  - Selects best cards to approximate that amount
+
+**Documentation Created:**
+1. **`3B_VARIANT_IMPLEMENTATION.md`** (900+ lines)
+   - Complete architecture documentation
+   - Detailed file-by-file changes
+   - Implementation patterns
+   - Testing checklist
+   - Troubleshooting guide
+
+2. **`CARD_VARIANT_QUICK_REFERENCE.md`** (400+ lines)
+   - Quick implementation guide for 4B, 5B, 6B variants
+   - 10-minute implementation checklist
+   - Common pitfalls and solutions
+   - Example: Full 4B implementation
+
+**Testing Results:**
+- ✅ Card selection UI works correctly
+- ✅ Round 1-5: Can only select 1 card
+- ✅ Round 6-10: Can select up to 2 cards
+- ✅ Backend validation enforces limits
+- ✅ Spent cards visible to all players
+- ✅ Cards persist across maps
+- ✅ AI selects appropriate cards
+- ✅ Game plays through successfully
+
+**Strategic Impact:**
+- **Resource Management:** Players must carefully manage limited cards
+- **Visible Information:** Opponent's spent cards create strategic depth
+- **Progressive Complexity:** Single cards early, combos late
+- **Risk/Reward:** Using high cards early vs. saving for later
+
+**Ready for Expansion:**
+- 4B, 5B, 6B variants can be implemented in ~10 minutes each
+- All core infrastructure reusable
+- Documentation provides clear implementation path
+
+---
+
+## 📝 Session 9 Progress Summary
+
+**Work Completed in This Session:**
+
+### AI Bidding Behavior Fix for POTS Mode Final Round ✅
+
+**Problem Identified**:
+AI players were automatically promising all their remaining money in the final round of all game modes, including POTS mode. This was problematic because in POTS mode, the amount of money a player has remaining after the final bidding round determines their turn order in the special final placement phase. By promising all their money, AI players were eliminating any strategic advantage they could gain from careful money management.
+
+**Why This Matters**:
+- **Standard Mode**: Final round (round 6) is truly the last round - no special mechanics
+- **POTS Mode**: Final round (varies: round 10 for 3/6 players, round 8 for 4/5 players) is followed by a FINAL_PLACEMENT phase
+- **Final Placement Turn Order**: Determined by remaining money (descending), with ties broken by fewest tokens on board
+- **Strategic Impact**: Players with more money place tokens first in final placement, getting better positions
+
+**The Bug**:
+```typescript
+// Before (line 73-77):
+// In the final round (round 6), promise all money
+if (currentRound >= totalRounds) {
+  return { song: randomSong, amount: currencyBalance };
+}
+```
+
+This logic applied to ALL game modes. When an AI player reached the final round in POTS mode, they would bid their entire balance, leaving them with $0 for the final placement turn order calculation. This meant:
+1. AI players would always be at a disadvantage in final placement
+2. Human players who saved money would always place first
+3. The strategic depth of the final round was eliminated for AI opponents
+
+**The Fix**:
+
+**1. Added `isPOTS` Parameter to `generateAIBid()` Function** (line 15-27)
+
+```typescript
+// Before:
+function generateAIBid(
+  currencyBalance: number,
+  playerId: string,
+  turnOrderA: string[],
+  turnOrderB: string[],
+  turnOrderC: string[] | null,
+  turnOrderD: string[] | null,
+  currentRound: number,
+  totalRounds: number,
+  biddingRound: number,
+  round1Bids: Array<{ playerId: string; song: string; amount: number }>,
+  aiPlayers: Array<{ id: string }>
+): { song: "A" | "B" | "C" | "D", amount: number }
+
+// After:
+function generateAIBid(
+  currencyBalance: number,
+  playerId: string,
+  turnOrderA: string[],
+  turnOrderB: string[],
+  turnOrderC: string[] | null,
+  turnOrderD: string[] | null,
+  currentRound: number,
+  totalRounds: number,
+  biddingRound: number,
+  round1Bids: Array<{ playerId: string; song: string; amount: number }>,
+  aiPlayers: Array<{ id: string }>,
+  isPOTS: boolean  // NEW PARAMETER
+): { song: "A" | "B" | "C" | "D", amount: number }
+```
+
+Updated the JSDoc comment to clarify the new behavior:
+```typescript
+/**
+ * Generate a random bid for an AI player
+ * Strategy: Random amount between 0 and available balance, random song
+ * Never bids on songs with fewer token placements
+ * In final round, promises all money (except in POTS mode where money determines final placement turn order)
+ */
+```
+
+**2. Modified Final Round Logic with POTS Check** (line 74-78)
+
+```typescript
+// Before:
+// In the final round (round 6), promise all money
+if (currentRound >= totalRounds) {
+  return { song: randomSong, amount: currencyBalance };
+}
+
+// After:
+// In the final round, promise all money ONLY if NOT in POTS mode
+// In POTS mode, money determines turn order in final placement phase, so AI should save some
+if (currentRound >= totalRounds && !isPOTS) {
+  return { song: randomSong, amount: currencyBalance };
+}
+```
+
+**Key Changes**:
+- Added `&& !isPOTS` condition to the final round check
+- Added detailed comment explaining why POTS mode is excluded
+- When in POTS mode, AI players skip this logic and fall through to normal bidding behavior
+
+**3. Updated Function Calls in `processAIBids()`** (lines 244 and 276)
+
+**First Call - Promise Phase (Round 1)** (line 230-245):
+```typescript
+if (biddingRound === 1 && !hasRound1Bid) {
+  // AI needs to submit Round 1 bid
+  const { song, amount } = generateAIBid(
+    aiPlayer.currencyBalance,
+    aiPlayer.id,
+    turnOrderA,
+    turnOrderB,
+    turnOrderC,
+    turnOrderD,
+    game.roundNumber,
+    totalRounds,
+    biddingRound,
+    round1Bids,
+    aiPlayers,
+    game.isPOTS  // NEW: Pass POTS flag from database
+  );
+```
+
+**Second Call - Bribe Phase (Round 2)** (line 259-277):
+```typescript
+} else if (biddingRound === 2 && hasRound1Bid && hasRound1Bid.amount === 0) {
+  // AI bid 0 in Round 1, needs to submit Round 2 bid
+  const hasRound2Bid = currentRoundBids.find(b => b.playerId === aiPlayer.id && b.round === 2);
+
+  if (!hasRound2Bid) {
+    const { song, amount } = generateAIBid(
+      aiPlayer.currencyBalance,
+      aiPlayer.id,
+      turnOrderA,
+      turnOrderB,
+      turnOrderC,
+      turnOrderD,
+      game.roundNumber,
+      totalRounds,
+      biddingRound,
+      round1Bids,
+      aiPlayers,
+      game.isPOTS  // NEW: Pass POTS flag from database
+    );
+```
+
+**Implementation Details**:
+
+**How `isPOTS` Flag is Retrieved**:
+The `processAIBids()` function queries the game from the database at line 181-192:
+```typescript
+const game = await prisma.game.findUnique({
+  where: { id: gameId },
+  include: {
+    players: {
+      orderBy: { createdAt: 'asc' },
+    },
+    bids: {
+      where: { gameRound: await prisma.game.findUnique({ where: { id: gameId } }).then(g => g?.roundNumber || 1) },
+    },
+  },
+});
+```
+
+The `game` object includes the `isPOTS` field (defined in `prisma/schema.prisma` line 22):
+```prisma
+model Game {
+  // ... other fields ...
+  isPOTS           Boolean           @default(false) // POTS mode: fixed implications, 10 rounds, final placement
+  // ... other fields ...
+}
+```
+
+**Result - New AI Behavior**:
+
+**Non-POTS Games (Standard Mode)**:
+- Final round: AI promises all remaining money (original behavior preserved)
+- Example: AI with $15 remaining → bids $15 in final round
+- Rationale: No strategic reason to save money, game ends after round 6
+
+**POTS Games (All Player Counts)**:
+- Final round: AI uses normal bidding logic
+  - 50% chance: Bid $0 (enters Bribe Phase)
+  - 50% chance: Bid $1-10 (capped by balance)
+- Example scenarios:
+  - AI with $15 remaining → might bid $0, $3, $7, etc. (randomized)
+  - Retains money for final placement turn order advantage
+- Rationale: Preserving money = better turn order = strategic advantage
+
+**Files Modified**:
+1. **`lib/game/ai-bidding.ts`** (4 changes)
+   - Line 15-27: Added `isPOTS: boolean` parameter to function signature
+   - Line 11-14: Updated JSDoc comment to document POTS behavior
+   - Line 74-78: Modified final round logic to check `!isPOTS` condition
+   - Line 244: First `generateAIBid()` call - added `game.isPOTS` argument
+   - Line 276: Second `generateAIBid()` call - added `game.isPOTS` argument
+
+**Database Schema Reference**:
+The `isPOTS` flag is set when games are created:
+- **VS AI Mode**: Set to `true` in `app/api/game/create-ai/route.ts` (all player counts)
+- **POTS Mode**: Was set to `true` in `app/api/game/create-pots/route.ts` (now deleted, see Session 8)
+- **Standard Mode**: Defaults to `false` for human multiplayer games
+
+**Testing Recommendations**:
+1. ✅ Create 3-player POTS game and advance to round 10
+2. ✅ Verify AI players don't bid all money in promise phase
+3. ✅ Check AI players have money remaining after round 10 bidding
+4. ✅ Verify final placement turn order reflects money differences
+5. ✅ Repeat for 4-player (round 8), 5-player (round 8), 6-player (round 10)
+6. ✅ Verify standard (non-POTS) games still have AI bid all money in final round
+
+**Strategic Impact**:
+- **Before**: AI players would always place last in final placement (had $0)
+- **After**: AI players compete for turn order based on bidding strategy
+- **Result**: Final placement phase is more balanced and strategic
+
+**Backward Compatibility**:
+- ✅ Standard mode behavior unchanged (AI still promises all money in final round)
+- ✅ Existing games not affected (uses stored `isPOTS` flag from database)
+- ✅ No database migration required (`isPOTS` field already exists)
+- ✅ No API changes required (all logic internal to AI bidding module)
+
+**Code Quality Notes**:
+- Function signature extended cleanly with new parameter
+- Logic change is minimal and focused (one condition added)
+- Comments added to explain POTS-specific behavior
+- No side effects or unrelated changes
+- Preserves existing AI intelligence features (avoids songs with fewer tokens, smart bribe phase logic)
+
+**Related Systems**:
+This change interacts with:
+1. **Final Placement Turn Order Calculation** (`app/api/game/[gameId]/advance/route.ts`)
+   - Lines 254-307: Calculates turn order based on remaining money
+   - Lines 369-442: Same calculation after human completion
+2. **Final Placement Phase** (`components/game/TokenPlacementPhase.tsx`)
+   - Shows money-based turn order in UI
+3. **Game Status Flow**:
+   ```
+   ROUND1 → ROUND2 → RESULTS → TOKEN_PLACEMENT → ... (repeat) →
+   FINAL_PLACEMENT (POTS only) → FINISHED
+   ```
+
+**Future Considerations**:
+- Could add configurable AI difficulty levels (aggressive vs. conservative bidding in final round)
+- Could implement machine learning to optimize AI final round strategy
+- Could add personality traits to AI players (some save more money, some bid more)
+
+---
+
+## 📝 Session 8 Progress Summary
 
 **Work Completed in This Session:**
 

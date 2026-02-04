@@ -61,6 +61,14 @@ export async function GET(
       include: { player: { select: { name: true, playerColor: true } } },
     });
 
+    console.log('[GAME FETCH] Fetching game state:', {
+      gameId: game.id,
+      roundNumber: game.roundNumber,
+      isPOTS: game.isPOTS,
+      isMultiMap: game.isMultiMap,
+      currentMapNumber: game.currentMapNumber
+    });
+
     return NextResponse.json({
       game: {
         id: game.id,
@@ -69,6 +77,12 @@ export async function GET(
         roundNumber: game.roundNumber,
         winningSong: game.winningSong,
         isPOTS: game.isPOTS,
+        isMultiMap: game.isMultiMap,
+        gameVariant: game.gameVariant,
+        currentMapNumber: game.currentMapNumber,
+        firstMapLayout: game.firstMapLayout,
+        firstMapResults: game.firstMapResults,
+        secondMapLayout: game.secondMapLayout,
         turnOrderA: game.turnOrderA ? JSON.parse(game.turnOrderA) : null,
         turnOrderB: game.turnOrderB ? JSON.parse(game.turnOrderB) : null,
         turnOrderC: game.turnOrderC ? JSON.parse(game.turnOrderC) : null,
@@ -78,6 +92,7 @@ export async function GET(
         highlightedEdges: game.highlightedEdges,
         currentTurnIndex: game.currentTurnIndex,
         placementTimeout: game.placementTimeout,
+        totalRounds: game.totalRounds,
       },
       players: game.players.map(p => ({
         id: p.id,
@@ -85,6 +100,7 @@ export async function GET(
         currencyBalance: p.currencyBalance, // Show all players' balances
         victoryPoints: p.victoryPoints,
         playerColor: p.playerColor,
+        cardInventory: p.cardInventory, // Include card inventory for 3B variant
         isMe: p.id === session.playerId,
       })),
       tokens: tokens.map(t => ({

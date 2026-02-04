@@ -2,12 +2,14 @@
 
 import React from "react";
 import { Card, CardHeader, CardContent } from "@/components/ui/Card";
+import { deserializeInventory } from "@/lib/game/card-inventory";
 
 interface Player {
   id: string;
   name: string;
   currencyBalance?: number | null;
   playerColor?: string | null;
+  cardInventory?: string | null;
   isMe: boolean;
 }
 
@@ -15,9 +17,12 @@ interface PlayerListProps {
   players: Player[];
   currentRound: number;
   gameStatus?: string;
+  isMultiMap?: boolean;
+  totalRounds?: number;
+  is3BVariant?: boolean;
 }
 
-export function PlayerList({ players, currentRound, gameStatus }: PlayerListProps) {
+export function PlayerList({ players, currentRound, gameStatus, isMultiMap, totalRounds, is3BVariant = false }: PlayerListProps) {
   return (
     <Card>
       <CardHeader>
@@ -50,9 +55,30 @@ export function PlayerList({ players, currentRound, gameStatus }: PlayerListProp
                   </span>
                 </div>
 
-                {player.currencyBalance !== null && player.currencyBalance !== undefined ? (
+                {!is3BVariant && player.currencyBalance !== null && player.currencyBalance !== undefined ? (
+                  // Standard variant: Show currency
                   <div className="text-right">
                     <div className="text-2xl font-bold text-green-600">${player.currencyBalance}</div>
+                  </div>
+                ) : is3BVariant && player.cardInventory ? (
+                  // Card Variant: Show spent cards from previous rounds
+                  <div className="text-right">
+                    {(() => {
+                      const inventory = deserializeInventory(player.cardInventory);
+                      const sortedSpent = [...inventory.spent].sort((a, b) => a - b);
+                      const spentDisplay = sortedSpent.length > 0
+                        ? sortedSpent.map(card => `$${card}`).join(", ")
+                        : "None";
+
+                      return (
+                        <div>
+                          <div className="text-xs text-gray-500 mb-1">Spent:</div>
+                          <div className="text-sm font-semibold text-red-600">
+                            {spentDisplay}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 ) : (
                   <div className="text-sm text-gray-500">-</div>
@@ -64,7 +90,11 @@ export function PlayerList({ players, currentRound, gameStatus }: PlayerListProp
 
         <div className="mt-4 text-center">
           <p className="text-sm text-gray-600">
-            {gameStatus === "FINAL_PLACEMENT" ? "Final Round" : `Round ${currentRound}`}
+            {gameStatus === "FINAL_PLACEMENT"
+              ? "Final Round"
+              : isMultiMap && totalRounds
+              ? `Round ${currentRound}/${totalRounds}`
+              : `Round ${currentRound}`}
           </p>
         </div>
       </CardContent>

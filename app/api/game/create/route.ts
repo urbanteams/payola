@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { generateRoomCode, generateSessionToken, createSession } from "@/lib/auth";
 import { generateMapLayout, serializeMapLayout } from "@/lib/game/map-generator";
 import { getTotalRounds } from "@/lib/game/song-implications";
+import { createInitialInventory, serializeInventory } from "@/lib/game/card-inventory";
 
 const PLAYER_COLORS = [
   '#FF6B6B', // Red
@@ -36,14 +37,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Note: Map layout will be generated when game starts (when we know player count)
-    // Map type (NYC36 vs NYC48) is determined automatically based on player count
-    // All games now use POTS mechanics (fixed song patterns with randomized player assignments)
+    // Map type is determined based on player count and will use B variants by default
+    // All games now use Multi-Map mode with card-based bidding
     const game = await prisma.game.create({
       data: {
         roomCode,
         status: "LOBBY",
         roundNumber: 1,
-        isPOTS: true, // All games use POTS mechanics now (human players only)
+        isMultiMap: true, // All games use Multi-Map mode with B variants
+        // gameVariant will be set when game starts (based on player count: 3B, 4B, 5B, or 6B)
         // mapType, mapLayout and totalRounds will be set when game starts
       },
     });
@@ -55,7 +57,8 @@ export async function POST(request: NextRequest) {
         gameId: game.id,
         name: playerName.trim(),
         sessionToken,
-        currencyBalance: 30,
+        currencyBalance: 20, // Multi-Map mode starts with $20
+        cardInventory: serializeInventory(createInitialInventory()), // All B variants use card-based bidding
         playerColor: PLAYER_COLORS[0], // First player gets first color
       },
     });
