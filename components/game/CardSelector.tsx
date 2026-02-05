@@ -66,13 +66,20 @@ export default function CardSelector({
     } else {
       // Check if we've reached the max number of cards
       if (usedIndices.length >= maxCards) {
-        // Don't allow more selections
-        return;
+        // If maxCards is 1, allow switching to a different card
+        if (maxCards === 1) {
+          // Clear current selection and select new card
+          setUsedIndices([index]);
+          onSelectCards([value]);
+        } else {
+          // For multiple card selection, don't allow more selections
+          return;
+        }
+      } else {
+        // Select this card
+        setUsedIndices([...usedIndices, index]);
+        onSelectCards([...selectedCards, value]);
       }
-
-      // Select this card
-      setUsedIndices([...usedIndices, index]);
-      onSelectCards([...selectedCards, value]);
     }
   };
 
@@ -155,7 +162,7 @@ export default function CardSelector({
         {isFinalRound
           ? "FINAL ROUND: Click as many cards as you want to bid. Click again to deselect."
           : maxCards === 1
-          ? "Click ONE card to bid (Rounds 1-5). Click again to deselect."
+          ? "Click ONE card to bid (Rounds 1-5). Click a different card to change selection."
           : "Click up to TWO cards to bid (Rounds 6+). Click again to deselect."}
       </div>
     </div>

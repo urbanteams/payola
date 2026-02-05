@@ -305,7 +305,8 @@ export const MULTI_MAP_PATTERN_6A: SongImplicationPattern = {
  * - 5 rounds per map (10 rounds total)
  * - 4 tokens per round
  * - Map is exactly filled by player tokens: 4 × 5 = 20
- * - Starting cards: 8 cards (2×$1, 2×$2, 2×$3, 2×$4) - card-based bidding
+ * - Starting cards: 5 cards (1×$1, 1×$2, 1×$3, 1×$4, 1×$5) - card-based bidding
+ * - Second map cards: +5 cards (1×$1, 1×$2, 1×$3, 1×$4, 1×$5) when second map begins
  * - Cards carry over between maps (spent cards permanent)
  * - Rounds 1-5: Max 1 card per bid, Rounds 6-10: Max 2 cards per bid
  * - Only 3 songs available (Song A, B, C)
@@ -313,7 +314,7 @@ export const MULTI_MAP_PATTERN_6A: SongImplicationPattern = {
  * - Each player (A-D) appears exactly 3 times across all songs
  * - Player assignments randomize each round
  * - No Money Hub (replaced with Household)
- * - 1 Buzz Hub + 1 of each of 5 star types
+ * - 1 Power Hub + 1 of each of 5 star types
  */
 export const MULTI_MAP_PATTERN_4B: SongImplicationPattern = {
   songA: 'ADBA',
@@ -333,7 +334,8 @@ export const MULTI_MAP_PATTERN_4B: SongImplicationPattern = {
  * - 4 rounds per map (8 rounds total)
  * - 5 tokens per round
  * - Map is exactly filled by player tokens: 5 × 4 = 20
- * - Starting cards: 8 cards (2×$1, 2×$2, 2×$3, 2×$4) - card-based bidding
+ * - Starting cards: 5 cards (1×$1, 1×$2, 1×$3, 1×$4, 1×$5) - card-based bidding
+ * - Second map cards: +5 cards (1×$1, 1×$2, 1×$3, 1×$4, 1×$5) when second map begins
  * - Cards carry over between maps (spent cards permanent)
  * - Rounds 1-4: Max 1 card per bid, Rounds 5-7: Max 2 cards per bid, Round 8: Unlimited
  * - Only 3 songs available (Song A, B, C)
@@ -341,7 +343,7 @@ export const MULTI_MAP_PATTERN_4B: SongImplicationPattern = {
  * - Each player (A-E) appears exactly 3 times across all songs
  * - Player assignments randomize each round
  * - No Money Hub (replaced with Household)
- * - 1 Buzz Hub + 1 of each of 5 star types
+ * - 1 Power Hub + 1 of each of 5 star types
  */
 export const MULTI_MAP_PATTERN_5B: SongImplicationPattern = {
   songA: 'ABCAB',

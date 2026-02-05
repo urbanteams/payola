@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { Card, CardHeader, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { calculateSongTotals, determineWinningSong } from "@/lib/game/bidding-logic";
+import { PlacementOrderDisplay } from "./PlacementOrderDisplay";
 
 interface Bid {
   playerId: string;
@@ -17,6 +18,7 @@ interface Player {
   id: string;
   name: string;
   isMe: boolean;
+  playerColor?: string | null;
 }
 
 interface ResultsDisplayProps {
@@ -68,33 +70,8 @@ export function ResultsDisplay({
   if (winningSong === "C") winningTurnOrder = turnOrderC || null;
   if (winningSong === "D") winningTurnOrder = turnOrderD || null;
 
-  // Convert turn order (player IDs) to player names with bold for current player
-  const winningImplicationDisplay = (() => {
-    if (!winningTurnOrder || !players || players.length === 0) return null;
-
-    // Map player IDs to player objects
-    const playerObjects = winningTurnOrder.map(playerId => {
-      const player = players.find(p => p.id === playerId);
-      return player || { id: playerId, name: 'Unknown', isMe: false };
-    });
-
-    return (
-      <span>
-        {playerObjects.map((player, i) => {
-          return (
-            <React.Fragment key={i}>
-              {i > 0 && <span className="mx-1">→</span>}
-              {player.isMe ? (
-                <span className="font-bold text-amber-800">{player.name}</span>
-              ) : (
-                <span>{player.name}</span>
-              )}
-            </React.Fragment>
-          );
-        })}
-      </span>
-    );
-  })();
+  // Check if we should show winning implications
+  const shouldShowWinningImplications = winningTurnOrder && players && players.length > 0;
 
   // Countdown timer
   useEffect(() => {
@@ -158,19 +135,17 @@ export function ResultsDisplay({
       </CardHeader>
       <CardContent>
         {/* Winning Song Implications */}
-        {winningImplicationDisplay && (
+        {shouldShowWinningImplications && (
           <div className="mb-6 bg-gradient-to-r from-yellow-50 to-amber-50 border-2 border-yellow-400 rounded-lg p-6">
             <h3 className="text-lg font-bold text-gray-800 mb-2 text-center">🏆 Winning Song Implications</h3>
             <p className="text-center text-sm text-gray-700 mb-3">
               Song <span className="font-bold text-xl">{winningSong}</span> won! Token placement order:
             </p>
-            <div className="bg-white rounded-lg p-4 text-center">
-              <div className="text-lg text-gray-700 leading-relaxed">
-                {winningImplicationDisplay}
-              </div>
+            <div className="bg-white rounded-lg p-4">
+              <PlacementOrderDisplay turnOrder={winningTurnOrder!} players={players!} />
             </div>
             <p className="text-xs text-center text-gray-600 mt-3">
-              Your name appears in bold
+              Your name appears in bold with an amber border
             </p>
           </div>
         )}

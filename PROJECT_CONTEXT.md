@@ -438,7 +438,7 @@ Extended POTS experimental mode to support 6-player games with different song pa
 **Breaking Changes**:
 - MapLayout interface changed: `vertices` → `edges`
 - HexTile interface added `edgeCount` property
-- All hex type names changed (e.g., `lightning` → `buzzHub`, `house` → `households`)
+- All hex type names changed (e.g., `lightning` → `powerHub`, `house` → `households`)
 
 ## Token Placement System (January 17, 2026)
 
@@ -953,7 +953,7 @@ The game includes a hexagonal map system for token placement mechanics.
 ### Hex Types & Distribution
 
 **Updated Names (January 14, 2026)**:
-- Buzz Hub (⚡) - 1x per map - Yellow
+- Power Hub (⚡) - 1x per map - Yellow
 - Money Hub (💵) - 1x per map - Bright green
 - Blues Star (🎺) - 2x per map - Sky blue
 - Country Star (🤠) - 2x per map - Tan/beige
@@ -969,7 +969,7 @@ The game includes a hexagonal map system for token placement mechanics.
 
 **Special Rule - Double House Icon**:
 - Hexes with 5-6 surrounding token spaces show an extra 🏠 icon
-- Exception: Buzz Hub and Money Hub never show extra house icon
+- Exception: Power Hub and Money Hub never show extra house icon
 - Icons are sized at 1rem (smaller) when doubled to prevent clipping
 
 ### Map Layout Interface

@@ -8,7 +8,7 @@
 'use client';
 
 import React from 'react';
-import { MapLayout, getHexColor } from '@/lib/game/map-generator';
+import { MapLayout, getHexColor, getHexTypes } from '@/lib/game/map-generator';
 import { hexToPixel, getHexagonPoints, EdgeId, parseEdgeId, edgeToPixel, getEdgeRotation } from '@/lib/game/hex-grid';
 import { HexIcon } from './HexIcon';
 
@@ -40,13 +40,14 @@ const TOKEN_RADIUS = 14; // Token circle radius
 function HexagonTile({ hex, hexSize }: { hex: any; hexSize: number }) {
   const center = hexToPixel(hex.coordinate, hexSize);
   const points = getHexagonPoints(center.x, center.y, hexSize);
-  const color = getHexColor(hex.type);
+  // Use the first type for color (hexes with multiple types will use first type's color)
+  const color = getHexColor(getHexTypes(hex)[0] || 'households');
 
   // Show double house icon if this hex has 5-6 edges around it
-  // But NOT if it's a Money Hub or Buzz Hub
+  // But NOT if it's a Money Hub or Power Hub
   const showDoubleHouse = hex.edgeCount >= 5 &&
-    hex.type !== 'moneyHub' &&
-    hex.type !== 'buzzHub';
+    !getHexTypes(hex).includes('moneyHub') &&
+    !getHexTypes(hex).includes('powerHub');
 
   return (
     <g className="hex-tile">
@@ -77,8 +78,8 @@ function HexagonTile({ hex, hexSize }: { hex: any; hexSize: number }) {
             gap: '2px',
           }}
         >
-          <HexIcon type={hex.type} size={showDoubleHouse ? 'small' : 'normal'} />
-          {showDoubleHouse && <HexIcon type="households" size="small" />}
+          <HexIcon type={getHexTypes(hex)} size={showDoubleHouse ? 'small' : 'normal'} />
+          {showDoubleHouse && <HexIcon type={['households']} size="small" />}
         </div>
       </foreignObject>
     </g>

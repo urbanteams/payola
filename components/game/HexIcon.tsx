@@ -13,7 +13,7 @@ import React from 'react';
 import { HexType } from '@/lib/game/map-generator';
 
 interface HexIconProps {
-  type: HexType;
+  type: HexType | HexType[]; // Support both single type and multiple types
   className?: string;
   size?: 'normal' | 'small';
 }
@@ -30,7 +30,7 @@ const ICON_MAP: Record<HexType, string> = {
   rockStar: '🎸',
   popStar: '🎤',
   classicalStar: '🎹',
-  buzzHub: '⚡',
+  powerHub: '⚡',
   moneyHub: '💵',
 };
 
@@ -45,33 +45,38 @@ const LABEL_MAP: Record<HexType, string> = {
   rockStar: 'Rock Star',
   popStar: 'Pop Star',
   classicalStar: 'Classical Star',
-  buzzHub: 'Buzz Hub',
+  powerHub: 'Power Hub',
   moneyHub: 'Money Hub',
 };
 
 /**
  * HexIcon component
  *
- * Renders an icon for a hex type
+ * Renders icon(s) for a hex type or multiple hex types
  * Currently uses Unicode emoji, designed for easy SVG upgrade
  */
 export function HexIcon({ type, className = '', size = 'normal' }: HexIconProps) {
-  const icon = ICON_MAP[type];
-  const label = LABEL_MAP[type];
   const fontSize = size === 'small' ? '1rem' : '1.5rem';
+
+  // Support both single type and array of types
+  const types = Array.isArray(type) ? type : [type];
+
+  // Get icons and labels for all types
+  const icons = types.map(t => ICON_MAP[t]).join(' ');
+  const labels = types.map(t => LABEL_MAP[t]).join(' and ');
 
   return (
     <span
       className={`hex-icon ${className}`}
       role="img"
-      aria-label={label}
+      aria-label={labels}
       style={{
         fontSize,
         display: 'inline-block',
         lineHeight: 1,
       }}
     >
-      {icon}
+      {icons}
     </span>
   );
 }

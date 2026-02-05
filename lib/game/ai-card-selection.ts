@@ -9,11 +9,11 @@ import { CardInventory, calculateTotalValue, getCardCounts } from "./card-invent
 export type CardSelectionStrategy = "random" | "greedy" | "exact";
 
 /**
- * Select cards to bid (3B variant rule: 1 card in rounds 1-5, up to 2 cards in rounds 6+, unlimited in final round)
+ * Select cards to bid (3B variant rule: 1 card in rounds 1-5, up to 2 cards in rounds 6+)
  * @param inventory - Current card inventory
  * @param targetAmount - Desired bid amount
  * @param strategy - Selection strategy to use
- * @param maxCards - Maximum number of cards allowed (1 for rounds 1-5, 2 for rounds 6+, Infinity for final round)
+ * @param maxCards - Maximum number of cards allowed (1 for rounds 1-5, 2 for rounds 6+)
  * @returns Array containing selected card denominations (or empty for $0 bid)
  */
 export function selectCardsForAmount(
@@ -28,7 +28,8 @@ export function selectCardsForAmount(
 
   const availableCards = [...inventory.remaining];
 
-  // Handle unlimited cards (final round)
+  // Handle unlimited cards (legacy code - no longer used since final round now follows normal limits)
+  // Keeping this code path in case it's needed for future variants
   if (maxCards === Infinity) {
     // Try to find exact match with any combination of cards
     // Use a greedy approach: sort cards and try to match target
@@ -167,10 +168,8 @@ export function determineAIBidAmount(
     return 0;
   }
 
-  // Final round: Bid all cards
-  if (currentRound >= totalRounds) {
-    return totalAvailable;
-  }
+  // REMOVED: AI no longer automatically bids all cards in the final round
+  // Money/cards now convert to VP at end of game, so AI should bid strategically in all rounds
 
   // BRIBE PHASE (Round 2) SPECIAL LOGIC
   if (biddingRound === 2) {

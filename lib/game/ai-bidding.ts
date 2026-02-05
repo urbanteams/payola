@@ -17,7 +17,7 @@ import { selectCardsForAmount, determineAIBidAmount } from "./ai-card-selection"
  * Generate a random bid for an AI player
  * Strategy: Random amount between 0 and available balance, random song
  * Never bids on songs with fewer token placements
- * In final round, promises all money (except in POTS mode where money determines final placement turn order)
+ * AI bids strategically in all rounds (including final) since leftover money/cards = victory points
  */
 function generateAIBid(
   currencyBalance: number,
@@ -91,15 +91,12 @@ function generateAIBid(
 
     // Select cards to match target amount
     // Determine max cards based on variant and round
-    const isFinalRound = currentRound >= totalRounds;
     let maxCards: number;
-    if (isFinalRound) {
-      maxCards = Infinity; // Final round: unlimited cards for all variants
-    } else if (gameVariant === "5B") {
-      // 5B variant: R1-4 = 1 card, R5-7 = 2 cards, R8 = unlimited
+    if (gameVariant === "5B") {
+      // 5B variant: R1-4 = 1 card, R5+ = 2 cards
       maxCards = currentRound <= 4 ? 1 : 2;
     } else {
-      // Default (3B, 4B, 6B): R1-5 = 1 card, R6+ = 2 cards, final = unlimited
+      // Default (3B, 4B, 6B): R1-5 = 1 card, R6+ = 2 cards
       maxCards = currentRound <= 5 ? 1 : 2;
     }
     const selectedCards = selectCardsForAmount(inventory, targetAmount, "random", maxCards);
@@ -162,11 +159,8 @@ function generateAIBid(
   // Random song from available options
   const randomSong = availableSongs[Math.floor(Math.random() * availableSongs.length)];
 
-  // In the final round, promise all money ONLY if NOT in POTS mode
-  // In POTS mode, money determines turn order in final placement phase, so AI should save some
-  if (currentRound >= totalRounds && !isPOTS) {
-    return { song: randomSong, amount: currencyBalance };
-  }
+  // REMOVED: AI no longer automatically bids all money in the final round
+  // Money now converts to VP at end of game (1 VP per dollar), so AI should bid strategically
 
   // BRIBE PHASE (Round 2) SPECIAL LOGIC
   if (biddingRound === 2) {

@@ -5,7 +5,7 @@
  */
 
 import { EdgeId, parseEdgeId, HexCoordinate } from './hex-grid';
-import { MapLayout, HexTile } from './map-generator';
+import { MapLayout, HexTile, getHexTypes } from './map-generator';
 import { getSongImplications, parseTurnOrder } from './song-implications';
 
 export interface PlacementTurn {
@@ -17,7 +17,7 @@ export interface PlacementTurn {
 export interface ImmediateReward {
   victoryPoints?: number;
   currency?: number;
-  hexType: 'buzzHub' | 'moneyHub';
+  hexType: 'powerHub' | 'moneyHub';
   hexId: string;
 }
 
@@ -137,7 +137,7 @@ export function validateTokenPlacement(
 }
 
 /**
- * Calculate immediate rewards (VP or currency) from buzz/money hubs
+ * Calculate immediate rewards (VP or currency) from power/money hubs
  * @param edgeId Where the token was placed
  * @param tokenType The type of token ("4/0", "2/2", "1/3")
  * @param orientation Which hex gets which value ("A" or "B")
@@ -179,7 +179,7 @@ export function calculateImmediateReward(
     hex2Value = orientation === 'A' ? valueB : valueA;
   }
 
-  // Check each hex for buzzHub or moneyHub
+  // Check each hex for powerHub or moneyHub
   const checkHexReward = (hexCoord: HexCoordinate, value: number): ImmediateReward | null => {
     const hex = mapLayout.hexes.find(
       (h) => h.coordinate.q === hexCoord.q && h.coordinate.r === hexCoord.r
@@ -187,13 +187,13 @@ export function calculateImmediateReward(
 
     if (!hex || value === 0) return null;
 
-    if (hex.type === 'buzzHub') {
+    if (getHexTypes(hex).includes('powerHub')) {
       return {
         victoryPoints: value,
-        hexType: 'buzzHub',
+        hexType: 'powerHub',
         hexId: hex.id,
       };
-    } else if (hex.type === 'moneyHub') {
+    } else if (getHexTypes(hex).includes('moneyHub')) {
       return {
         currency: value,
         hexType: 'moneyHub',
@@ -247,7 +247,7 @@ export function getNextTurn(
  */
 export function formatRewardMessage(reward: ImmediateReward, playerName: string): string {
   if (reward.victoryPoints !== undefined) {
-    return `${playerName} gained ${reward.victoryPoints} VP from the Buzz Hub!`;
+    return `${playerName} gained ${reward.victoryPoints} VP from the Power Hub!`;
   } else if (reward.currency !== undefined) {
     return `${playerName} gained $${reward.currency} from the Money Hub!`;
   }

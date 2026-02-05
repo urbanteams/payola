@@ -61,21 +61,57 @@ export function PlayerList({ players, currentRound, gameStatus, isMultiMap, tota
                     <div className="text-2xl font-bold text-green-600">${player.currencyBalance}</div>
                   </div>
                 ) : is3BVariant && player.cardInventory ? (
-                  // Card Variant: Show spent cards from previous rounds
+                  // Card Variant: Show spent cards from previous rounds as visual cards
                   <div className="text-right">
                     {(() => {
                       const inventory = deserializeInventory(player.cardInventory);
                       const sortedSpent = [...inventory.spent].sort((a, b) => a - b);
-                      const spentDisplay = sortedSpent.length > 0
-                        ? sortedSpent.map(card => `$${card}`).join(", ")
-                        : "None";
+
+                      // Group cards by value to create column structure
+                      const cardsByValue: { [key: number]: number } = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+                      sortedSpent.forEach(card => {
+                        if (card >= 1 && card <= 5) {
+                          cardsByValue[card] = (cardsByValue[card] || 0) + 1;
+                        }
+                      });
+
+                      const maxRows = Math.max(...Object.values(cardsByValue), 1);
+                      const hasCards = sortedSpent.length > 0;
 
                       return (
                         <div>
                           <div className="text-xs text-gray-500 mb-1">Spent:</div>
-                          <div className="text-sm font-semibold text-red-600">
-                            {spentDisplay}
-                          </div>
+                          {hasCards ? (
+                            <div className="grid grid-cols-5 gap-1 justify-items-end">
+                              {/* Create rows for each duplicate level */}
+                              {Array.from({ length: maxRows }).map((_, rowIndex) => (
+                                <React.Fragment key={rowIndex}>
+                                  {/* Create columns for each card value (1-5) */}
+                                  {[1, 2, 3, 4, 5].map(cardValue => {
+                                    const count = cardsByValue[cardValue];
+                                    const shouldShow = rowIndex < count;
+
+                                    return (
+                                      <div
+                                        key={`${rowIndex}-${cardValue}`}
+                                        className="w-[40px] h-[28px] flex items-center justify-center"
+                                      >
+                                        {shouldShow ? (
+                                          <div className="w-full h-full flex items-center justify-center rounded border-2 border-red-400 bg-red-50 text-red-700 text-xs font-bold">
+                                            ${cardValue}
+                                          </div>
+                                        ) : (
+                                          <div className="w-full h-full" />
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </React.Fragment>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-xs text-gray-500">None</div>
+                          )}
                         </div>
                       );
                     })()}

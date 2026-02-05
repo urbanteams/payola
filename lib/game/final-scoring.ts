@@ -10,7 +10,7 @@
  */
 
 import { calculateHexControl, HexCoordinate } from './hex-grid';
-import { MapLayout, HexType } from './map-generator';
+import { MapLayout, HexType, getHexTypes } from './map-generator';
 
 export interface PlayerScore {
   playerId: string;
@@ -58,7 +58,7 @@ function calculateHouseScoring(
   }>,
   mapLayout: MapLayout
 ): Record<string, { totalHouses: number; rank: number; vp: number }> {
-  const houseHexes = mapLayout.hexes.filter((h) => h.type === 'households');
+  const houseHexes = mapLayout.hexes.filter((h) => getHexTypes(h).includes('households'));
   const playerHouses: Record<string, number> = {};
 
   // Initialize all players
@@ -175,7 +175,7 @@ function calculateSetCollectionScoring(
     collectibleTypes.push('classicalStar');
   }
 
-  const collectibleHexes = mapLayout.hexes.filter((h) => collectibleTypes.includes(h.type));
+  const collectibleHexes = mapLayout.hexes.filter((h) => getHexTypes(h).some(type => collectibleTypes.includes(type)));
   const playerSymbols: Record<string, Set<HexType>> = {};
 
   // Initialize all players
@@ -193,10 +193,15 @@ function calculateSetCollectionScoring(
     const maxInfluence = Math.max(...entries.map(([, inf]) => inf));
     const controllers = entries.filter(([, inf]) => inf === maxInfluence).map(([pid]) => pid);
 
-    // All tied controllers get the symbol
+    // All tied controllers get all symbols from this hex
     controllers.forEach((pid) => {
       if (playerSymbols[pid]) {
-        playerSymbols[pid].add(hex.type);
+        // Add each type from the hex (hexes can have multiple types)
+        getHexTypes(hex).forEach(type => {
+          if (collectibleTypes.includes(type)) {
+            playerSymbols[pid].add(type);
+          }
+        });
       }
     });
   }

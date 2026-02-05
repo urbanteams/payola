@@ -77,7 +77,7 @@ interface GameContextType {
   loading: boolean;
   error: string | null;
   submitBid: (song: string, amount: number, cards?: number[]) => Promise<void>;
-  advanceGame: (action: "start" | "nextRound" | "finish" | "startSecondMap" | "completeTokenPlacement" | "startTokenPlacement") => Promise<void>;
+  advanceGame: (action: "start" | "nextRound" | "finish" | "startSecondMap" | "completeTokenPlacement" | "startTokenPlacement" | "viewFinalResults") => Promise<void>;
   refetch: () => Promise<void>;
 }
 
@@ -177,7 +177,7 @@ export function GameProvider({ gameId, children }: Omit<GameProviderProps, 'poll
     }
   }, [gameId, fetchGameState]);
 
-  const advanceGame = useCallback(async (action: "start" | "nextRound" | "finish" | "startSecondMap" | "completeTokenPlacement" | "startTokenPlacement") => {
+  const advanceGame = useCallback(async (action: "start" | "nextRound" | "finish" | "startSecondMap" | "completeTokenPlacement" | "startTokenPlacement" | "viewFinalResults") => {
     try {
       setError(null);
       const response = await fetch(`/api/game/${gameId}/advance`, {

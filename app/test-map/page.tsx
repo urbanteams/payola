@@ -186,7 +186,7 @@ export default function TestMapPage() {
               {edgeCount === 48 && (
                 <li>🎤 Classical Star (grey) - 2x per map (48-edge only)</li>
               )}
-              <li>⚡ Buzz Hub (yellow) - 1x per map</li>
+              <li>⚡ Power Hub (yellow) - 1x per map</li>
               {!noMoneyHub && <li>💵 Money Hub (bright green) - 1x per map</li>}
               {noMoneyHub && <li className="text-yellow-400 font-semibold">💵 Money Hub replaced with additional Household</li>}
             </ul>

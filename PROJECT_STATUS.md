@@ -29,7 +29,8 @@ Simplified game creation by making B variants (multi-map mode with card-based bi
    - AI games: Auto-select variant based on player count
    - Lobby games: Auto-select variant when game starts
    - Starting currency: $20 (down from $30)
-   - Card inventory: All players start with 8 cards (2×$1, 2×$2, 2×$3, 2×$4)
+   - Card inventory: All players start with 5 cards (1×$1, 1×$2, 1×$3, 1×$4, 1×$5)
+   - Second map: Players receive 5 additional cards (1×$1, 1×$2, 1×$3, 1×$4, 1×$5) when second map begins
 
 4. **Technical Improvements:**
    - Added `postinstall` script to regenerate Prisma Client automatically
@@ -49,6 +50,21 @@ Simplified game creation by making B variants (multi-map mode with card-based bi
 - Successfully deployed to Vercel
 - All builds passing with PostgreSQL database
 
+### Minor UI Fix: Player Name Word-Wrapping ✅
+
+**Issue**: Player names in song implications were breaking mid-word across lines
+- Example: "Karthik" could display as "Karthi" on one line and "k" on the next line
+
+**Fix**: Added `whitespace-nowrap` CSS class to prevent mid-word breaks
+- Names now wrap as complete units between arrows
+- Multiple rows still supported, but words never split
+
+**Files Modified:**
+- `components/game/SongSelector.tsx:75-79` - Added `whitespace-nowrap` to name and arrow spans
+- `components/game/ResultsDisplay.tsx:86-91` - Same fix for results display
+
+**Result**: Player names always display as complete words, improving readability in song implications
+
 ---
 
 ## 📝 Session 10 Progress Summary (February 2, 2026)
@@ -61,7 +77,8 @@ Simplified game creation by making B variants (multi-map mode with card-based bi
 Implemented a complete card-based bidding system for 3-player multi-map games. Replaces currency with a fixed set of cards that players use to bid. Spent cards are permanently removed and visible to all players.
 
 **Key Features:**
-- **Starting Inventory:** Each player gets 2×$1, 2×$2, 2×$3, 2×$4 cards (total value: $20)
+- **Starting Inventory:** Each player gets 1×$1, 1×$2, 1×$3, 1×$4, 1×$5 cards (total value: $15)
+- **Second Map Cards:** When second map begins, each player receives additional 1×$1, 1×$2, 1×$3, 1×$4, 1×$5 cards (total: 10 cards)
 - **Round-Based Limits:**
   - Rounds 1-5 (First Map): Can use ONLY 1 card per bid
   - Rounds 6-10 (Second Map): Can use UP TO 2 cards per bid
@@ -681,7 +698,7 @@ Both modes were implemented simultaneously by different agents:
    - **Root Causes**:
      - Used `idToVertex()` on edge IDs (format: `"e_0_0_1_0"`)
      - Tried to get 3 adjacent hexes (vertex logic) instead of 2 (edge logic)
-     - Checked for wrong hex types (`'lightning'`, `'dollar'` instead of `'buzzHub'`, `'moneyHub'`)
+     - Checked for wrong hex types (`'lightning'`, `'dollar'` instead of `'powerHub'`, `'moneyHub'`)
    - **Fix**: Complete rewrite using `parseEdgeId()` to get two adjacent hexagons
    - **Files**: `lib/game/token-placement-logic.ts:7-242`
    - **Result**: Players now correctly receive VP/currency when placing tokens adjacent to hubs
@@ -699,12 +716,12 @@ Both modes were implemented simultaneously by different agents:
 3. ✅ **Added end game statistics display**
    - **New Module**: `lib/game/end-game-scoring.ts` (223 lines)
      - `calculateSymbolsCollected()` - Determines hex control and counts symbols
-     - `calculateBuzzHubScores()` - Calculates VP from Buzz Hub influence
+     - `calculatePowerHubScores()` - Calculates VP from Power Hub influence
      - Handles ties correctly: ALL tied players control the hexagon
-     - Excludes buzzHub/moneyHub from symbol collection (no end-game control)
+     - Excludes powerHub/moneyHub from symbol collection (no end-game control)
    - **Updated**: `components/game/GameBoard.tsx` - Two new cards on FINISHED screen:
      - "Symbols Collected" - Shows 🏠 🎺 🤠 🎷 🎸 🎤 🎹 with counts (text-2xl emojis, black bold numbers)
-     - "Buzz Hub Victory Points" - Shows VP earned from Buzz Hub influence
+     - "Power Hub Victory Points" - Shows VP earned from Power Hub influence
    - **Result**: Players see complete end-game scoring breakdown
 
 ### UX Improvements
@@ -993,7 +1010,7 @@ Adding a hexagonal map feature to the Payola bidding game where:
 
 ### Medium Priority (Polish)
 2. **ImmediateRewardToast.tsx** - VP/currency notifications
-   - Toast popup when placing token on money/buzz hub
+   - Toast popup when placing token on money/power hub
    - Show +VP or +$ amount
    - Currently rewards apply silently
 
@@ -1036,7 +1053,7 @@ Adding a hexagonal map feature to the Payola bidding game where:
 8. ✅ **Game continues** → Multiple rounds until map complete
 9. ✅ **FINISHED** → Game complete, show final statistics
    - ✅ Symbols collected per player (with hex control logic)
-   - ✅ Buzz Hub VP totals
+   - ✅ Power Hub VP totals
    - ✅ Final map view with zoom/pan
    - ✅ Player colors throughout UI
 
@@ -1135,11 +1152,11 @@ if (allPlaced) {
 ```
 payola/
 ├── lib/game/
-│   ├── token-placement-logic.ts (MODIFIED Session 5 - fixed money/buzz hub rewards)
+│   ├── token-placement-logic.ts (MODIFIED Session 5 - fixed money/power hub rewards)
 │   │   └── Complete rewrite of calculateImmediateReward() for edge-based logic
 │   ├── end-game-scoring.ts (NEW Session 5 - 223 lines)
 │   │   ├── calculateSymbolsCollected() - hex control with tie handling
-│   │   └── calculateBuzzHubScores() - VP from Buzz Hub influence
+│   │   └── calculatePowerHubScores() - VP from Power Hub influence
 │   ├── ai-bidding.ts (MODIFIED Session 5 - enhanced intelligence)
 │   │   ├── Never bids on songs with fewer token placements
 │   │   └── Promises all money in final round
@@ -1150,7 +1167,7 @@ payola/
 ├── components/game/
 │   ├── GameBoard.tsx (MODIFIED Session 5 - end game statistics display)
 │   │   ├── "Symbols Collected" card with larger emojis, black bold numbers
-│   │   └── "Buzz Hub Victory Points" card
+│   │   └── "Power Hub Victory Points" card
 │   ├── PlayerList.tsx (MODIFIED Session 5 - player color tinting)
 │   │   ├── Border in player color
 │   │   ├── Name text in player color
@@ -1244,7 +1261,7 @@ payola/
 - Map Viewing: 100% ✅
 - Round Transitions: 100% ✅
 - End Game Scoring: 100% ✅ (NEW - Session 5)
-- Money/Buzz Hub Rewards: 100% ✅ (FIXED - Session 5)
+- Money/Power Hub Rewards: 100% ✅ (FIXED - Session 5)
 - UI Components: 100% ✅ (NEW - Session 5)
 - API Integration: 100% ✅
 - Visual Polish: 100% ✅

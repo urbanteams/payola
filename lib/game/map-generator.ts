@@ -15,16 +15,33 @@ export type HexType =
   | 'rockStar'
   | 'popStar'
   | 'classicalStar' // 5-6 player only
-  | 'buzzHub' // 1 per map
+  | 'powerHub' // 1 per map
   | 'moneyHub'; // 1 per map
 
 export type MapType = 'NYC15' | 'NYC18' | 'NYC20' | 'NYC24' | 'NYC25' | 'NYC30' | 'NYC36' | 'NYC48';
 
 export interface HexTile {
   coordinate: HexCoordinate;
-  type: HexType;
+  type?: HexType; // Legacy: single type (backward compatibility)
+  types?: HexType[]; // New: array to support multiple symbols per hex
   id: string; // Unique identifier: "hex_{q}_{r}"
   edgeCount: number; // Number of edges (token spaces) surrounding this hex
+}
+
+/**
+ * Helper function to get hex types (handles both old 'type' and new 'types' format)
+ */
+export function getHexTypes(hex: HexTile): HexType[] {
+  // If types array exists, use it
+  if (hex.types && hex.types.length > 0) {
+    return hex.types;
+  }
+  // Otherwise fall back to legacy 'type' field
+  if (hex.type) {
+    return [hex.type];
+  }
+  // Default to empty array if neither exists
+  return [];
 }
 
 export interface MapLayout {
@@ -181,7 +198,7 @@ const NYC48_POSITIONS: HexCoordinate[] = [
 /**
  * Define hex type distribution based on player count
  * Creates distribution for variable number of hexes
- * Always includes: 1 buzzHub, 1 moneyHub, 2x each star type, rest are households
+ * Always includes: 1 powerHub, 1 moneyHub, 2x each star type, rest are households
  */
 function getHexTypeDistribution(
   totalHexes: number,
@@ -190,7 +207,7 @@ function getHexTypeDistribution(
   const is56Player = playerCount >= 5;
 
   // Fixed special hexes (always exactly 1 of each)
-  const distribution: HexType[] = ['buzzHub', 'moneyHub'];
+  const distribution: HexType[] = ['powerHub', 'moneyHub'];
 
   // Star collectibles (2 of each type)
   distribution.push('bluesStar', 'bluesStar');
@@ -411,7 +428,7 @@ export function generateMapLayout(
 
     return {
       coordinate: coord,
-      type: shuffledTypes[index],
+      types: [shuffledTypes[index]], // Wrap in array to support multiple symbols
       id: hexId(coord),
       edgeCount,
     };
@@ -489,11 +506,11 @@ export function generateMapLayoutWithEdgeCount(
   let distribution: HexType[] = [];
 
   if (noMoneyHub) {
-    // 3B/4B/6B variants: No Money Hub, just Buzz Hub
-    distribution = ['buzzHub'];
+    // 3B/4B/6B variants: No Money Hub, just Power Hub
+    distribution = ['powerHub'];
   } else {
     // Standard: Both hubs
-    distribution = ['buzzHub', 'moneyHub'];
+    distribution = ['powerHub', 'moneyHub'];
   }
 
   // Maps with 1x each of 5 main stars (no Classical Star)
@@ -509,7 +526,7 @@ export function generateMapLayoutWithEdgeCount(
       distribution.push('classicalStar');
     }
     // Current count: 7 (without classical) or 8 (with classical for NYC24)
-    // For NYC20 with noMoneyHub: 6 (buzzHub + 5 stars) base distribution
+    // For NYC20 with noMoneyHub: 6 (powerHub + 5 stars) base distribution
   }
   // Maps with 2x each of 5 main stars (+ 2x Classical Star for NYC30 6B variant)
   else if (targetEdges === 30 || targetEdges === 36) {
@@ -523,9 +540,9 @@ export function generateMapLayoutWithEdgeCount(
     if (includeClassicalStars && targetEdges === 30) {
       distribution.push('classicalStar', 'classicalStar');
     }
-    // Current count: 12 for standard (buzzHub + moneyHub + 10 stars)
-    //                11 for 4B (buzzHub + 10 stars, no moneyHub)
-    //                13 for 6B (buzzHub + 10 stars + 2 classicalStars, no moneyHub)
+    // Current count: 12 for standard (powerHub + moneyHub + 10 stars)
+    //                11 for 4B (powerHub + 10 stars, no moneyHub)
+    //                13 for 6B (powerHub + 10 stars + 2 classicalStars, no moneyHub)
   }
   // 48-edge map: 2x each of 5 main stars + 2x Classical Star
   else if (targetEdges === 48) {
@@ -557,7 +574,7 @@ export function generateMapLayoutWithEdgeCount(
 
     return {
       coordinate: coord,
-      type: shuffledTypes[index],
+      types: [shuffledTypes[index]], // Wrap in array to support multiple symbols
       id: hexId(coord),
       edgeCount,
     };
@@ -604,7 +621,7 @@ export function getHexColor(type: HexType): string {
     rockStar: '#FFB6B9', // Coral
     popStar: '#90EE90', // Light green
     classicalStar: '#D3D3D3', // Light gray
-    buzzHub: '#FFFF00', // Bright yellow
+    powerHub: '#FFFF00', // Bright yellow
     moneyHub: '#00FF00', // Bright green
   };
 
@@ -614,18 +631,40 @@ export function getHexColor(type: HexType): string {
 /**
  * Get hex label for accessibility/debugging
  */
-export function getHexLabel(type: HexType): string {
+export function getHexLabel(types: HexType | HexType[]): string {
   const labels: Record<HexType, string> = {
-    households: 'Households',
+    households: 'Household', // Singular by default
     bluesStar: 'Blues Star',
     countryStar: 'Country Star',
     jazzStar: 'Jazz Star',
     rockStar: 'Rock Star',
     popStar: 'Pop Star',
     classicalStar: 'Classical Star',
-    buzzHub: 'Buzz Hub',
+    powerHub: 'Power Hub',
     moneyHub: 'Money Hub',
   };
 
-  return labels[type];
+  // Support both single type and array of types for backward compatibility
+  const typeArray = Array.isArray(types) ? types : [types];
+
+  if (typeArray.length === 0) return 'Unknown';
+
+  // Special case: double households → "Households" (plural)
+  if (typeArray.length === 2 && typeArray[0] === 'households' && typeArray[1] === 'households') {
+    return 'Households';
+  }
+
+  if (typeArray.length === 1) return labels[typeArray[0]];
+
+  // Multiple types: remove duplicates for labeling
+  const uniqueTypes = Array.from(new Set(typeArray));
+  const labelStrings = uniqueTypes.map(t => labels[t]);
+
+  if (labelStrings.length === 2) {
+    return `${labelStrings[0]} and ${labelStrings[1]}`;
+  }
+
+  // More than 2: use commas and "and"
+  const lastLabel = labelStrings.pop();
+  return `${labelStrings.join(', ')}, and ${lastLabel}`;
 }

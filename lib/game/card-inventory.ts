@@ -11,10 +11,16 @@ export interface CardInventory {
 }
 
 /**
- * Starting cards for 3B variant: 2×$1, 2×$2, 2×$3, 2×$4
- * Total value: $20
+ * Starting cards for B variants: 1×$1, 1×$2, 1×$3, 1×$4, 1×$5
+ * Total value: $15
  */
-export const STARTING_CARDS = [1, 1, 2, 2, 3, 3, 4, 4];
+export const STARTING_CARDS = [1, 2, 3, 4, 5];
+
+/**
+ * Cards added when second map appears: 1×$1, 1×$2, 1×$3, 1×$4, 1×$5
+ * Total value: $15 (bringing total to $30 after second map)
+ */
+export const SECOND_MAP_CARDS = [1, 2, 3, 4, 5];
 
 /**
  * Create initial card inventory for a new player
@@ -35,11 +41,12 @@ export function serializeInventory(inventory: CardInventory): string {
 
 /**
  * Deserialize card inventory from JSON string
+ * Cards are sorted in ascending order to ensure consistent display
  */
 export function deserializeInventory(json: string): CardInventory {
   const parsed = JSON.parse(json);
   return {
-    remaining: parsed.remaining || [],
+    remaining: (parsed.remaining || []).sort((a: number, b: number) => a - b),
     spent: parsed.spent || [],
   };
 }
@@ -84,7 +91,7 @@ export function validateCardSelection(
 
 /**
  * Spend cards from inventory (move from remaining to spent)
- * Returns updated inventory
+ * Returns updated inventory (remaining cards sorted in ascending order)
  * IMPORTANT: Does not validate - call validateCardSelection first
  */
 export function spendCards(
@@ -103,7 +110,7 @@ export function spendCards(
   }
 
   return {
-    remaining: newRemaining,
+    remaining: newRemaining.sort((a, b) => a - b),
     spent: newSpent,
   };
 }
@@ -151,4 +158,18 @@ export function hasCardsRemaining(inventory: CardInventory): boolean {
  */
 export function getRemainingValue(inventory: CardInventory): number {
   return calculateTotalValue(inventory.remaining);
+}
+
+/**
+ * Add cards to an existing inventory
+ * Returns updated inventory with new cards added to remaining (sorted in ascending order)
+ */
+export function addCards(
+  inventory: CardInventory,
+  cardsToAdd: number[]
+): CardInventory {
+  return {
+    remaining: [...inventory.remaining, ...cardsToAdd].sort((a, b) => a - b),
+    spent: [...inventory.spent],
+  };
 }

@@ -8,6 +8,7 @@ import { selectRandomVertices } from "@/lib/game/token-placement-logic";
 import { processAllAITokenPlacements } from "@/lib/game/ai-token-placement";
 import { selectNPCEdges, createNPCTokens } from "@/lib/game/npc-tokens";
 import { calculateSymbolsCollected } from "@/lib/game/end-game-scoring";
+import { deserializeInventory, addCards, serializeInventory, SECOND_MAP_CARDS } from "@/lib/game/card-inventory";
 
 /**
  * Calculate rounds per map for Multi-Map mode based on player count and variant
@@ -30,7 +31,7 @@ export async function POST(
   try {
     const { gameId } = await params;
     const body = await request.json();
-    let { action } = body; // "start" | "nextRound" | "startTokenPlacement" | "completeTokenPlacement" | "finish"
+    let { action } = body; // "start" | "nextRound" | "startTokenPlacement" | "completeTokenPlacement" | "finish" | "viewFinalResults"
 
     // completeTokenPlacement is called server-side from place-token route (which has auth)
     // So we skip session check for this action to allow internal calls
@@ -275,6 +276,22 @@ export async function POST(
       const tokensPerRound = implications.tokensPerRound;
       const highlightedEdges = selectRandomVertices(secondMapLayout, [], tokensPerRound);
 
+      // Add cards to all players for second map (B variants only)
+      if (game.gameVariant && game.gameVariant.endsWith('B')) {
+        for (const player of game.players) {
+          if (player.cardInventory) {
+            const currentInventory = deserializeInventory(player.cardInventory);
+            const updatedInventory = addCards(currentInventory, SECOND_MAP_CARDS);
+            await prisma.player.update({
+              where: { id: player.id },
+              data: {
+                cardInventory: serializeInventory(updatedInventory),
+              },
+            });
+          }
+        }
+      }
+
       // Update game to second map
       await prisma.game.update({
         where: { id: gameId },
@@ -296,6 +313,36 @@ export async function POST(
       return NextResponse.json({
         success: true,
         secondMapStarted: true,
+      });
+    }
+
+    if (action === "viewFinalResults") {
+      // Multi-Map Mode: Transition from second map completed to final results
+      if (game.status !== "SECOND_MAP_COMPLETED") {
+        return NextResponse.json(
+          { error: "Not in second map completed state" },
+          { status: 400 }
+        );
+      }
+
+      if (!game.isMultiMap) {
+        return NextResponse.json(
+          { error: "This action is only for Multi-Map mode" },
+          { status: 400 }
+        );
+      }
+
+      // Update game status to FINISHED to show final results
+      await prisma.game.update({
+        where: { id: gameId },
+        data: {
+          status: 'FINISHED',
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        finalResultsReady: true,
       });
     }
 
@@ -579,17 +626,17 @@ export async function POST(
                   }
                 }
 
-                // Game is finished - update status
+                // Second map completed - update status to show second map results screen
                 await prisma.game.update({
                   where: { id: gameId },
                   data: {
-                    status: 'FINISHED',
+                    status: 'SECOND_MAP_COMPLETED',
                   },
                 });
 
                 return NextResponse.json({
                   success: true,
-                  gameFinished: true,
+                  secondMapCompleted: true,
                 });
               }
             }
@@ -1018,15 +1065,15 @@ export async function POST(
               symbolsCollected,
             });
           } else if (game.roundNumber === roundsPerMap * 2) {
-            // Second map completed - game finished
+            // Second map completed - show second map results screen
             await prisma.game.update({
               where: { id: gameId },
-              data: { status: 'FINISHED' },
+              data: { status: 'SECOND_MAP_COMPLETED' },
             });
 
             return NextResponse.json({
               success: true,
-              gameFinished: true,
+              secondMapCompleted: true,
             });
           }
         }

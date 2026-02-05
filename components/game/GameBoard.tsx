@@ -14,14 +14,15 @@ import { TabViewSwitcher } from "./TabViewSwitcher";
 import { TokenPlacementPhase } from "./TokenPlacementPhase";
 import { MapViewer } from "./MapViewer";
 import { FirstMapCompletedScreen } from "./FirstMapCompletedScreen";
+import { SecondMapResultsScreen } from "./SecondMapResultsScreen";
 import { FinalResultsMultiMap } from "./FinalResultsMultiMap";
 import { FirstMapResultsTab } from "./FirstMapResultsTab";
 import { Card, CardContent } from "@/components/ui/Card";
 import { calculateSongTotals, isTieRequiringWheel, getWheelSongs } from "@/lib/game/bidding-logic";
 import { deserializeMapLayout } from "@/lib/game/map-generator";
-import { calculateSymbolsCollected, calculateBuzzHubScores } from "@/lib/game/end-game-scoring";
+import { calculateSymbolsCollected, calculatePowerHubScores, calculateMoneyPoints } from "@/lib/game/end-game-scoring";
 import { HexIcon } from "./HexIcon";
-import { deserializeInventory, CardInventory } from "@/lib/game/card-inventory";
+import { deserializeInventory, CardInventory, calculateTotalValue } from "@/lib/game/card-inventory";
 
 export function GameBoard() {
   const { gameState, loading, error, submitBid, advanceGame } = useGame();
@@ -161,6 +162,17 @@ export function GameBoard() {
       await advanceGame("startSecondMap");
     } catch (err) {
       console.error("Failed to advance to second map:", err);
+    } finally {
+      setIsAdvancing(false);
+    }
+  };
+
+  const handleAdvanceToFinalResults = async () => {
+    setIsAdvancing(true);
+    try {
+      await advanceGame("viewFinalResults");
+    } catch (err) {
+      console.error("Failed to advance to final results:", err);
     } finally {
       setIsAdvancing(false);
     }
@@ -608,6 +620,18 @@ export function GameBoard() {
               />
             )}
 
+            {/* SECOND_MAP_COMPLETED - Multi-Map Mode only */}
+            {game.status === "SECOND_MAP_COMPLETED" && game.isMultiMap && game.secondMapLayout && (
+              <SecondMapResultsScreen
+                gameId={game.id}
+                secondMapLayout={game.secondMapLayout}
+                players={players}
+                tokens={gameState.tokens || []}
+                onAdvanceToFinalResults={handleAdvanceToFinalResults}
+                isAdvancing={isAdvancing}
+              />
+            )}
+
             {/* FINISHED - Multi-Map Mode */}
             {game.status === "FINISHED" && game.isMultiMap && game.firstMapResults && game.firstMapLayout && game.secondMapLayout && (
               <FinalResultsMultiMap
@@ -653,7 +677,7 @@ export function GameBoard() {
                     mapLayout,
                     playerInfo
                   );
-                  const buzzHubScores = calculateBuzzHubScores(
+                  const powerHubScores = calculatePowerHubScores(
                     gameState.tokens.map(t => ({
                       id: t.id,
                       edgeId: t.edgeId as any,
@@ -666,6 +690,30 @@ export function GameBoard() {
                     })),
                     mapLayout,
                     playerInfo
+                  );
+                  const moneyPoints = calculateMoneyPoints(
+                    players.map(p => {
+                      let remainingCardValue: number | undefined;
+
+                      // If player has card inventory, calculate total value of remaining cards
+                      if (p.cardInventory) {
+                        try {
+                          const inventory = deserializeInventory(p.cardInventory);
+                          remainingCardValue = calculateTotalValue(inventory.remaining);
+                        } catch (error) {
+                          console.error(`Failed to parse card inventory for player ${p.name}:`, error);
+                          remainingCardValue = 0;
+                        }
+                      }
+
+                      return {
+                        id: p.id,
+                        name: p.name,
+                        color: p.playerColor || '#888888',
+                        currencyBalance: p.currencyBalance,
+                        remainingCardValue,
+                      };
+                    })
                   );
 
                   return (
@@ -738,16 +786,16 @@ export function GameBoard() {
                         </CardContent>
                       </Card>
 
-                      {/* Buzz Hub Victory Points */}
+                      {/* Power Hub Victory Points */}
                       <Card className="mb-6">
                         <CardContent className="py-6">
                           <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center">
-                            <HexIcon type="buzzHub" className="mr-2" />
-                            Buzz Hub Victory Points
+                            <HexIcon type="powerHub" className="mr-2" />
+                            Power Hub Victory Points
                           </h2>
                           <div className="space-y-3">
-                            {buzzHubScores
-                              .sort((a, b) => b.buzzHubVictoryPoints - a.buzzHubVictoryPoints)
+                            {powerHubScores
+                              .sort((a, b) => b.powerHubVictoryPoints - a.powerHubVictoryPoints)
                               .map((score) => (
                                 <div
                                   key={score.playerId}
@@ -758,8 +806,39 @@ export function GameBoard() {
                                     {score.playerName}
                                   </span>
                                   <span className="text-2xl font-bold text-gray-700">
-                                    {score.buzzHubVictoryPoints} VP
+                                    {score.powerHubVictoryPoints} VP
                                   </span>
+                                </div>
+                              ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      {/* Unspent Money Points */}
+                      <Card className="mb-6">
+                        <CardContent className="py-6">
+                          <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center">Unspent Money Victory Points</h2>
+                          <p className="text-sm text-gray-600 text-center mb-4">
+                            Each player receives 1 victory point for each dollar they have remaining unspent at the end of the game.
+                          </p>
+                          <div className="space-y-3">
+                            {moneyPoints
+                              .sort((a, b) => b.moneyPoints - a.moneyPoints)
+                              .map((score) => (
+                                <div
+                                  key={score.playerId}
+                                  className="p-4 rounded-lg border-2 flex items-center justify-between"
+                                  style={{ borderColor: score.playerColor }}
+                                >
+                                  <div>
+                                    <span className="font-bold text-lg" style={{ color: score.playerColor }}>
+                                      {score.playerName}
+                                    </span>
+                                    <span className="ml-2 text-gray-600">
+                                      (${score.unspentMoney} remaining)
+                                    </span>
+                                  </div>
+                                  <span className="text-2xl font-bold text-gray-700">{score.moneyPoints} VP</span>
                                 </div>
                               ))}
                           </div>

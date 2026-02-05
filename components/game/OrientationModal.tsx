@@ -2,9 +2,9 @@
 
 import React from 'react';
 import { HexIcon } from './HexIcon';
-import type { HexTile } from '@/lib/game/map-generator';
+import type { HexTile, HexType } from '@/lib/game/map-generator';
 import type { EdgeId } from '@/lib/game/hex-grid';
-import { getHexLabel } from '@/lib/game/map-generator';
+import { getHexLabel, getHexTypes } from '@/lib/game/map-generator';
 import { parseEdgeId, getEdgeRotation } from '@/lib/game/hex-grid';
 
 export interface OrientationModalProps {
@@ -40,6 +40,31 @@ export function OrientationModal({
   // Get the first two adjacent hexes for orientation choice
   const hex1 = adjacentHexes[0];
   const hex2 = adjacentHexes[1] || adjacentHexes[0]; // Fallback to same hex if only one
+
+  // Helper function to get display types for a hex (including bonus household for 5-6 edge hexes)
+  const getDisplayTypes = (hex: HexTile): HexType[] => {
+    const types = getHexTypes(hex);
+    const hasDoubleSymbol = hex.edgeCount >= 5 &&
+      !types.includes('powerHub') &&
+      !types.includes('moneyHub');
+
+    if (!hasDoubleSymbol) return types;
+
+    // If this is a households-only hex with 5-6 edges, show two households
+    if (types.length === 1 && types[0] === 'households') {
+      return ['households', 'households'];
+    }
+
+    // If this is a star hex with 5-6 edges, add households to the display
+    if (types.some(t =>
+      t === 'bluesStar' || t === 'countryStar' || t === 'jazzStar' ||
+      t === 'rockStar' || t === 'popStar' || t === 'classicalStar'
+    )) {
+      return [...types, 'households'];
+    }
+
+    return types;
+  };
 
   // Calculate display values based on whether we need to flip
   const getDisplayValues = (orientation: 'A' | 'B') => {
@@ -96,21 +121,21 @@ export function OrientationModal({
             <div className="space-y-3 text-left">
               {hex1 && (
                 <div className="flex items-center gap-3 bg-gray-800 p-3 rounded">
-                  <HexIcon type={hex1.type} className="text-3xl" />
-                  <div className="flex-1">
-                    <div className="font-semibold">{getHexLabel(hex1.type)}</div>
+                  <HexIcon type={getDisplayTypes(hex1)} className="text-3xl flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold">{getHexLabel(getDisplayTypes(hex1))}</div>
                   </div>
-                  <div className="text-2xl font-bold text-blue-400">→ {optionAValues.hex1Value}</div>
+                  <div className="text-2xl font-bold text-blue-400 flex-shrink-0 whitespace-nowrap">→ {optionAValues.hex1Value}</div>
                 </div>
               )}
 
               {hex2 && hex2 !== hex1 && (
                 <div className="flex items-center gap-3 bg-gray-800 p-3 rounded">
-                  <HexIcon type={hex2.type} className="text-3xl" />
-                  <div className="flex-1">
-                    <div className="font-semibold">{getHexLabel(hex2.type)}</div>
+                  <HexIcon type={getDisplayTypes(hex2)} className="text-3xl flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold">{getHexLabel(getDisplayTypes(hex2))}</div>
                   </div>
-                  <div className="text-2xl font-bold text-blue-400">→ {optionAValues.hex2Value}</div>
+                  <div className="text-2xl font-bold text-blue-400 flex-shrink-0 whitespace-nowrap">→ {optionAValues.hex2Value}</div>
                 </div>
               )}
 
@@ -147,21 +172,21 @@ export function OrientationModal({
             <div className="space-y-3 text-left">
               {hex1 && (
                 <div className="flex items-center gap-3 bg-gray-800 p-3 rounded">
-                  <HexIcon type={hex1.type} className="text-3xl" />
-                  <div className="flex-1">
-                    <div className="font-semibold">{getHexLabel(hex1.type)}</div>
+                  <HexIcon type={getDisplayTypes(hex1)} className="text-3xl flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold">{getHexLabel(getDisplayTypes(hex1))}</div>
                   </div>
-                  <div className="text-2xl font-bold text-green-400">→ {optionBValues.hex1Value}</div>
+                  <div className="text-2xl font-bold text-green-400 flex-shrink-0 whitespace-nowrap">→ {optionBValues.hex1Value}</div>
                 </div>
               )}
 
               {hex2 && hex2 !== hex1 && (
                 <div className="flex items-center gap-3 bg-gray-800 p-3 rounded">
-                  <HexIcon type={hex2.type} className="text-3xl" />
-                  <div className="flex-1">
-                    <div className="font-semibold">{getHexLabel(hex2.type)}</div>
+                  <HexIcon type={getDisplayTypes(hex2)} className="text-3xl flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold">{getHexLabel(getDisplayTypes(hex2))}</div>
                   </div>
-                  <div className="text-2xl font-bold text-green-400">→ {optionBValues.hex2Value}</div>
+                  <div className="text-2xl font-bold text-green-400 flex-shrink-0 whitespace-nowrap">→ {optionBValues.hex2Value}</div>
                 </div>
               )}
 
@@ -176,19 +201,19 @@ export function OrientationModal({
         </div>
 
         {/* Special Hex Highlights */}
-        {adjacentHexes.some((hex) => hex.type === 'buzzHub' || hex.type === 'moneyHub') && (
+        {adjacentHexes.some((hex) => getHexTypes(hex).includes('powerHub') || getHexTypes(hex).includes('moneyHub')) && (
           <div className="bg-yellow-900 border border-yellow-700 p-4 rounded-lg mb-4">
             <h4 className="font-bold mb-2 flex items-center gap-2">
               ⚠️ Immediate Reward Available!
             </h4>
             {adjacentHexes
-              .filter((hex) => hex.type === 'buzzHub' || hex.type === 'moneyHub')
+              .filter((hex) => getHexTypes(hex).includes('powerHub') || getHexTypes(hex).includes('moneyHub'))
               .map((hex) => (
                 <p key={hex.id} className="text-sm text-yellow-100">
-                  {hex.type === 'buzzHub' && (
-                    <>⚡ Buzz Hub hex: You'll gain Victory Points equal to the influence you place!</>
+                  {getHexTypes(hex).includes('powerHub') && (
+                    <>⚡ Power Hub hex: You'll gain Victory Points equal to the influence you place!</>
                   )}
-                  {hex.type === 'moneyHub' && (
+                  {getHexTypes(hex).includes('moneyHub') && (
                     <>💵 Money Hub hex: You'll gain Currency equal to the influence you place!</>
                   )}
                 </p>
