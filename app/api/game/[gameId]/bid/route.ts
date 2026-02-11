@@ -204,7 +204,7 @@ export async function POST(
         // No one bid 0, skip to results - determine winner and apply deductions
         const songTotals = calculateSongTotals(allBids);
         const availableSongs = getAvailableSongs(game);
-        let winningSong = determineWinningSong(songTotals, undefined, availableSongs);
+        let winningSong = determineWinningSong(songTotals, undefined, availableSongs, game.gameVariant);
 
         // If tie (null), randomly select from tied songs
         if (winningSong === null) {
@@ -301,7 +301,7 @@ export async function POST(
         // Calculate winner and deductions
         const songTotals = calculateSongTotals(allCurrentRoundBids);
         const availableSongs = getAvailableSongs(game);
-        let winningSong = determineWinningSong(songTotals, undefined, availableSongs);
+        let winningSong = determineWinningSong(songTotals, undefined, availableSongs, game.gameVariant);
 
         // If tie (null), randomly select from tied songs
         if (winningSong === null) {
@@ -441,7 +441,7 @@ export async function POST(
 
               const songTotals = calculateSongTotals(allBids);
               const availableSongs = getAvailableSongs(updatedGame);
-              let winningSong = determineWinningSong(songTotals, undefined, availableSongs);
+              let winningSong = determineWinningSong(songTotals, undefined, availableSongs, updatedGame.gameVariant);
 
               if (winningSong === null) {
                 const maxTotal = Math.max(...availableSongs.map((s: Song) => songTotals[s]));
@@ -525,7 +525,7 @@ export async function POST(
             // No zero bidders, skip to RESULTS
             const songTotals = calculateSongTotals(updatedRound1Bids);
             const availableSongs = getAvailableSongs(updatedGame);
-            let winningSong = determineWinningSong(songTotals, undefined, availableSongs);
+            let winningSong = determineWinningSong(songTotals, undefined, availableSongs, updatedGame.gameVariant);
 
             if (winningSong === null) {
               const maxTotal = Math.max(...availableSongs.map((s: Song) => songTotals[s]));
@@ -594,7 +594,7 @@ export async function POST(
           const allBids = updatedGame.bids;
           const songTotals = calculateSongTotals(allBids);
           const availableSongs = getAvailableSongs(updatedGame);
-          let winningSong = determineWinningSong(songTotals, undefined, availableSongs);
+          let winningSong = determineWinningSong(songTotals, undefined, availableSongs, updatedGame.gameVariant);
 
           if (winningSong === null) {
             const maxTotal = Math.max(...availableSongs.map((s: Song) => songTotals[s]));

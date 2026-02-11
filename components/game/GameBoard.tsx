@@ -77,7 +77,7 @@ export function GameBoard() {
       if (gameState.game.turnOrderC) availableSongs.push("C");
       if (gameState.game.turnOrderD) availableSongs.push("D");
 
-      if (isTieRequiringWheel(songTotals, availableSongs as any)) {
+      if (isTieRequiringWheel(songTotals, availableSongs as any, gameState.game.gameVariant)) {
         setShowWheel(true);
         setHasShownWheel(true);
       }
@@ -110,10 +110,10 @@ export function GameBoard() {
     }, 1500);
   };
 
-  const handleStartGame = async () => {
+  const handleStartGame = async (variant?: string) => {
     setIsAdvancing(true);
     try {
-      await advanceGame("start");
+      await advanceGame("start", variant);
     } catch (err) {
       console.error("Failed to start game:", err);
     } finally {
@@ -549,7 +549,7 @@ export function GameBoard() {
                       // Use getWheelSongs to determine which songs should appear on the wheel
                       // For 4-song games with 2-way tie, only the other two songs appear
                       const songTotals = calculateSongTotals(allBids);
-                      return getWheelSongs(songTotals, allSongs);
+                      return getWheelSongs(songTotals, allSongs, game.gameVariant);
                     })()}
                   />
                 ) : (
@@ -567,6 +567,7 @@ export function GameBoard() {
                     isPOTS={game.isPOTS}
                     currentRound={game.roundNumber}
                     totalRounds={game.totalRounds ?? undefined}
+                    gameVariant={game.gameVariant}
                   />
                 )}
               </>

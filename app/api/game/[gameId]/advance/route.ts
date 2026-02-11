@@ -31,7 +31,7 @@ export async function POST(
   try {
     const { gameId } = await params;
     const body = await request.json();
-    let { action } = body; // "start" | "nextRound" | "startTokenPlacement" | "completeTokenPlacement" | "finish" | "viewFinalResults"
+    let { action, gameVariant: requestedVariant } = body; // "start" | "nextRound" | "startTokenPlacement" | "completeTokenPlacement" | "finish" | "viewFinalResults"
 
     // completeTokenPlacement is called server-side from place-token route (which has auth)
     // So we skip session check for this action to allow internal calls
@@ -88,20 +88,22 @@ export async function POST(
         );
       }
 
-      // Generate map layout based on player count using B variants
+      // Generate map layout based on player count using variants
       // Filter out NPC player when counting players
       const realPlayers = game.players.filter(p => p.name !== 'NPC');
       const playerCount = realPlayers.length;
 
-      // Automatically select B variant based on player count
-      const gameVariant = playerCount === 3 ? "3B"
-                        : playerCount === 4 ? "4B"
-                        : playerCount === 5 ? "5B"
-                        : "6B"; // 6 players
+      // Use requested variant if provided, otherwise automatically select B variant based on player count
+      const gameVariant = requestedVariant || (
+        playerCount === 3 ? "3B"
+        : playerCount === 4 ? "4B"
+        : playerCount === 5 ? "5B"
+        : "6B" // 6 players
+      );
 
-      // Generate FIRST map with appropriate edge count for B variants
+      // Generate FIRST map with appropriate edge count for variants
       const edgeCount = gameVariant === "3B" ? 15  // 3B variant uses NYC15
-                      : gameVariant === "4B" ? 20  // 4B variant uses NYC20 (4 tokens × 5 rounds = 20)
+                      : (gameVariant === "4A" || gameVariant === "4B") ? 20  // 4A/4B variants use NYC20 (4 tokens × 5 rounds = 20)
                       : gameVariant === "5B" ? 20  // 5B variant uses NYC20 (5 tokens × 4 rounds = 20)
                       : 30; // 6B variant uses NYC30 (6 tokens × 5 rounds = 30)
       const includeClassicalStars = gameVariant === "6B"; // Only 6B gets Classical Stars

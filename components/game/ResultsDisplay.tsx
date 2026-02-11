@@ -35,6 +35,7 @@ interface ResultsDisplayProps {
   isPOTS?: boolean; // Is POTS mode
   currentRound?: number; // Current round number
   totalRounds?: number; // Total rounds in the game
+  gameVariant?: string | null; // Game variant
 }
 
 export function ResultsDisplay({
@@ -50,18 +51,19 @@ export function ResultsDisplay({
   turnOrderD,
   isPOTS = false,
   currentRound = 1,
-  totalRounds
+  totalRounds,
+  gameVariant
 }: ResultsDisplayProps) {
-  const songTotals = calculateSongTotals(bids);
-  const winningSong = determineWinningSong(songTotals, forcedWinner || undefined);
-  const [countdown, setCountdown] = useState(3);
-
   // Determine which songs are available based on which turn orders exist
   const availableSongs: Array<"A" | "B" | "C" | "D"> = [];
   if (turnOrderA) availableSongs.push("A");
   if (turnOrderB) availableSongs.push("B");
   if (turnOrderC) availableSongs.push("C");
   if (turnOrderD) availableSongs.push("D");
+
+  const songTotals = calculateSongTotals(bids);
+  const winningSong = determineWinningSong(songTotals, forcedWinner || undefined, availableSongs as any, gameVariant);
+  const [countdown, setCountdown] = useState(3);
 
   // Get the turn order for the winning song
   let winningTurnOrder: string[] | null = null;

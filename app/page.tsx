@@ -13,6 +13,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [aiPlayerCount, setAiPlayerCount] = useState<3 | 4 | 5 | 6>(3);
+  const [fourPlayerVariant, setFourPlayerVariant] = useState<"4A" | "4B">("4B");
 
   const handleCreateGame = async () => {
     if (!playerName.trim()) {
@@ -101,7 +102,8 @@ export default function Home() {
         },
         body: JSON.stringify({
           playerName: playerName.trim(),
-          playerCount: aiPlayerCount
+          playerCount: aiPlayerCount,
+          gameVariant: aiPlayerCount === 4 ? fourPlayerVariant : undefined
         }),
       });
 
@@ -292,6 +294,38 @@ export default function Home() {
                   ))}
                 </div>
               </div>
+
+              {aiPlayerCount === 4 && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    4-Player Variant:
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => setFourPlayerVariant("4A")}
+                      disabled={loading}
+                      className={`px-4 py-3 rounded-lg font-semibold transition-colors ${
+                        fourPlayerVariant === "4A"
+                          ? "bg-purple-600 text-white"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      } disabled:opacity-50`}
+                    >
+                      4A (3 Songs)
+                    </button>
+                    <button
+                      onClick={() => setFourPlayerVariant("4B")}
+                      disabled={loading}
+                      className={`px-4 py-3 rounded-lg font-semibold transition-colors ${
+                        fourPlayerVariant === "4B"
+                          ? "bg-purple-600 text-white"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      } disabled:opacity-50`}
+                    >
+                      4B (4 Songs)
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {error && (
                 <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">

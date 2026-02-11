@@ -77,7 +77,7 @@ interface GameContextType {
   loading: boolean;
   error: string | null;
   submitBid: (song: string, amount: number, cards?: number[]) => Promise<void>;
-  advanceGame: (action: "start" | "nextRound" | "finish" | "startSecondMap" | "completeTokenPlacement" | "startTokenPlacement" | "viewFinalResults") => Promise<void>;
+  advanceGame: (action: "start" | "nextRound" | "finish" | "startSecondMap" | "completeTokenPlacement" | "startTokenPlacement" | "viewFinalResults", gameVariant?: string) => Promise<void>;
   refetch: () => Promise<void>;
 }
 
@@ -177,7 +177,7 @@ export function GameProvider({ gameId, children }: Omit<GameProviderProps, 'poll
     }
   }, [gameId, fetchGameState]);
 
-  const advanceGame = useCallback(async (action: "start" | "nextRound" | "finish" | "startSecondMap" | "completeTokenPlacement" | "startTokenPlacement" | "viewFinalResults") => {
+  const advanceGame = useCallback(async (action: "start" | "nextRound" | "finish" | "startSecondMap" | "completeTokenPlacement" | "startTokenPlacement" | "viewFinalResults", gameVariant?: string) => {
     try {
       setError(null);
       const response = await fetch(`/api/game/${gameId}/advance`, {
@@ -185,7 +185,7 @@ export function GameProvider({ gameId, children }: Omit<GameProviderProps, 'poll
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action, gameVariant }),
       });
 
       if (!response.ok) {

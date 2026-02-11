@@ -298,7 +298,7 @@ export const MULTI_MAP_PATTERN_6A: SongImplicationPattern = {
 };
 
 /**
- * Multi-Map Mode - 4B Variant (4 Players, Card-Based Bidding)
+ * Multi-Map Mode - 4A Variant (4 Players, Card-Based Bidding, 3 Songs)
  *
  * Key features:
  * - Two maps: NYC20 (20 edges each)
@@ -315,11 +315,43 @@ export const MULTI_MAP_PATTERN_6A: SongImplicationPattern = {
  * - Player assignments randomize each round
  * - No Money Hub (replaced with Household)
  * - 1 Power Hub + 1 of each of 5 star types
+ * - Tie-breaking: 2-way tie triggers wheel spin between tied songs
  */
-export const MULTI_MAP_PATTERN_4B: SongImplicationPattern = {
+export const MULTI_MAP_PATTERN_4A: SongImplicationPattern = {
   songA: 'ADBA',
   songB: 'DACD',
   songC: 'BCBC',
+  tokensPerRound: 4,
+  totalRounds: 10,
+  isPOTS: false,
+  finalPlacementPhase: false,
+};
+
+/**
+ * Multi-Map Mode - 4B Variant (4 Players, Card-Based Bidding, 4 Songs)
+ *
+ * Key features:
+ * - Two maps: NYC20 (20 edges each)
+ * - 5 rounds per map (10 rounds total)
+ * - 4 tokens per round
+ * - Map is exactly filled by player tokens: 4 × 5 = 20
+ * - Starting cards: 5 cards (1×$1, 1×$2, 1×$3, 1×$4, 1×$5) - card-based bidding
+ * - Second map cards: +5 cards (1×$1, 1×$2, 1×$3, 1×$4, 1×$5) when second map begins
+ * - Cards carry over between maps (spent cards permanent)
+ * - Rounds 1-5: Max 1 card per bid, Rounds 6-10: Max 2 cards per bid
+ * - 4 songs available (Song A, B, C, D)
+ * - Song patterns: Song A = ABCB, Song B = BCDC, Song C = CDAD, Song D = DABA
+ * - Each player (A-D) appears exactly 4 times across all songs
+ * - Player assignments randomize each round
+ * - No Money Hub (replaced with Household)
+ * - 1 Power Hub + 1 of each of 5 star types
+ * - Tie-breaking: 2-way tie resolved by second-highest amount winning
+ */
+export const MULTI_MAP_PATTERN_4B: SongImplicationPattern = {
+  songA: 'ABCB',
+  songB: 'BCDC',
+  songC: 'CDAD',
+  songD: 'DABA',
   tokensPerRound: 4,
   totalRounds: 10,
   isPOTS: false,

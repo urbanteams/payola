@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { Card, CardHeader, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 
@@ -13,12 +13,13 @@ interface Player {
 interface GameLobbyProps {
   roomCode: string;
   players: Player[];
-  onStartGame: () => void;
+  onStartGame: (variant?: string) => void;
   isStarting: boolean;
 }
 
 export function GameLobby({ roomCode, players, onStartGame, isStarting }: GameLobbyProps) {
   const isCreator = players.length > 0 && players[0].isMe;
+  const [fourPlayerVariant, setFourPlayerVariant] = useState<"4A" | "4B">("4B");
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-50 flex items-center justify-center p-4">
@@ -81,10 +82,50 @@ export function GameLobby({ roomCode, players, onStartGame, isStarting }: GameLo
             </ul>
           </div>
 
+          {/* Variant Selection for 4 Players */}
+          {isCreator && players.length === 4 && (
+            <div className="mb-6">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Choose 4-Player Variant:
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => setFourPlayerVariant("4A")}
+                  disabled={isStarting}
+                  className={`px-4 py-3 rounded-lg font-semibold transition-colors ${
+                    fourPlayerVariant === "4A"
+                      ? "bg-indigo-600 text-white border-2 border-indigo-700"
+                      : "bg-white text-gray-700 border-2 border-gray-300 hover:border-indigo-400"
+                  } disabled:opacity-50`}
+                >
+                  <div className="font-bold">4A Variant</div>
+                  <div className="text-xs mt-1">3 Songs</div>
+                </button>
+                <button
+                  onClick={() => setFourPlayerVariant("4B")}
+                  disabled={isStarting}
+                  className={`px-4 py-3 rounded-lg font-semibold transition-colors ${
+                    fourPlayerVariant === "4B"
+                      ? "bg-indigo-600 text-white border-2 border-indigo-700"
+                      : "bg-white text-gray-700 border-2 border-gray-300 hover:border-indigo-400"
+                  } disabled:opacity-50`}
+                >
+                  <div className="font-bold">4B Variant</div>
+                  <div className="text-xs mt-1">4 Songs</div>
+                </button>
+              </div>
+              <p className="text-xs text-gray-600 mt-2">
+                {fourPlayerVariant === "4A"
+                  ? "Classic mode with 3 songs. 2-way ties trigger wheel spin."
+                  : "Enhanced mode with 4 songs. 2-way ties resolved by second-highest bid."}
+              </p>
+            </div>
+          )}
+
           {/* Start Button */}
           {isCreator && (
             <Button
-              onClick={onStartGame}
+              onClick={() => onStartGame(players.length === 4 ? fourPlayerVariant : undefined)}
               disabled={players.length < 3 || isStarting}
               className="w-full text-lg py-3"
             >

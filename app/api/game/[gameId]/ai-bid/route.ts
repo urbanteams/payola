@@ -94,7 +94,7 @@ export async function POST(
             const allBids = finalGame.bids;
             const songTotals = calculateSongTotals(allBids);
             const availableSongs = getAvailableSongs(finalGame);
-            let winningSong = determineWinningSong(songTotals, undefined, availableSongs);
+            let winningSong = determineWinningSong(songTotals, undefined, availableSongs, finalGame.gameVariant);
 
             // If tie (null), randomly select from tied songs
             if (winningSong === null) {
@@ -131,7 +131,7 @@ export async function POST(
         // No one bid 0, skip to results
         const songTotals = calculateSongTotals(round1Bids);
         const availableSongs = getAvailableSongs(updatedGame);
-        let winningSong = determineWinningSong(songTotals, undefined, availableSongs);
+        let winningSong = determineWinningSong(songTotals, undefined, availableSongs, updatedGame.gameVariant);
 
         // If tie (null), randomly select from tied songs
         if (winningSong === null) {

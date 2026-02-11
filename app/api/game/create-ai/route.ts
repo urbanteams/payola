@@ -18,7 +18,7 @@ const PLAYER_COLORS = [
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { playerName, playerCount = 3 } = body;
+    const { playerName, playerCount = 3, gameVariant } = body;
 
     if (!playerName || typeof playerName !== "string" || playerName.trim().length === 0) {
       return NextResponse.json(
@@ -34,11 +34,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Automatically select B variant based on player count
-    const gameVariant = playerCount === 3 ? "3B"
-                      : playerCount === 4 ? "4B"
-                      : playerCount === 5 ? "5B"
-                      : "6B"; // 6 players
+    // Use provided gameVariant, or automatically select B variant based on player count
+    const selectedVariant = gameVariant || (
+      playerCount === 3 ? "3B"
+      : playerCount === 4 ? "4B"
+      : playerCount === 5 ? "5B"
+      : "6B" // 6 players
+    );
 
     // Generate unique room code
     let roomCode = generateRoomCode();
@@ -50,18 +52,18 @@ export async function POST(request: NextRequest) {
       existingGame = await prisma.game.findUnique({ where: { roomCode } });
     }
 
-    // Generate FIRST map with appropriate edge count for B variants
-    const edgeCount = gameVariant === "3B" ? 15  // 3B variant uses NYC15
-                    : gameVariant === "4B" ? 20  // 4B variant uses NYC20 (4 tokens × 5 rounds = 20)
-                    : gameVariant === "5B" ? 20  // 5B variant uses NYC20 (5 tokens × 4 rounds = 20)
+    // Generate FIRST map with appropriate edge count for variants
+    const edgeCount = selectedVariant === "3B" ? 15  // 3B variant uses NYC15
+                    : (selectedVariant === "4A" || selectedVariant === "4B") ? 20  // 4A/4B variants use NYC20 (4 tokens × 5 rounds = 20)
+                    : selectedVariant === "5B" ? 20  // 5B variant uses NYC20 (5 tokens × 4 rounds = 20)
                     : 30; // 6B variant uses NYC30 (6 tokens × 5 rounds = 30)
-    const includeClassicalStars = gameVariant === "6B"; // Only 6B gets Classical Stars
-    const noMoneyHub = true; // All B variants replace Money Hub with Household
+    const includeClassicalStars = selectedVariant === "6B"; // Only 6B gets Classical Stars
+    const noMoneyHub = true; // All variants replace Money Hub with Household
     const firstMapLayout = generateMapLayoutWithEdgeCount(edgeCount, includeClassicalStars, noMoneyHub);
-    const totalRounds = getTotalRounds(playerCount, false, true, gameVariant); // useMultiMap = true, pass gameVariant
+    const totalRounds = getTotalRounds(playerCount, false, true, selectedVariant); // useMultiMap = true, pass selectedVariant
 
     // Generate turn orders for the first round using Multi-Map patterns
-    const implications = getSongImplications(playerCount, undefined, false, true, gameVariant); // useMultiMap = true, pass variant
+    const implications = getSongImplications(playerCount, undefined, false, true, selectedVariant); // useMultiMap = true, pass variant
 
     // Generate initial highlighted edges for first map
     const tokensPerRound = implications.tokensPerRound;
@@ -77,7 +79,7 @@ export async function POST(request: NextRequest) {
         totalRounds,
         isPOTS: false, // Not using POTS mode
         isMultiMap: true, // Enable Multi-Map mode
-        gameVariant: gameVariant, // Store variant (3B, 4B, 5B, or 6B)
+        gameVariant: selectedVariant, // Store variant (3B, 4A, 4B, 5B, or 6B)
         currentMapNumber: 1, // Starting with first map
         firstMapLayout: serializeMapLayout(firstMapLayout), // Store first map separately
         highlightedEdges: JSON.stringify(highlightedEdges), // Store for later use

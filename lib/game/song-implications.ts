@@ -6,7 +6,7 @@
  * Also supports POTS mode with fixed implications
  */
 
-import { SONG_IMPLICATION_PATTERNS, SongImplicationPattern, POTS_PATTERN, POTS_PATTERN_4PLAYER, POTS_PATTERN_5PLAYER, POTS_PATTERN_6PLAYER, MULTI_MAP_PATTERN_3PLAYER, MULTI_MAP_PATTERN_4PLAYER, MULTI_MAP_PATTERN_5PLAYER, MULTI_MAP_PATTERN_6PLAYER, MULTI_MAP_PATTERN_6A, MULTI_MAP_PATTERN_4B, MULTI_MAP_PATTERN_5B } from './song-implications-data';
+import { SONG_IMPLICATION_PATTERNS, SongImplicationPattern, POTS_PATTERN, POTS_PATTERN_4PLAYER, POTS_PATTERN_5PLAYER, POTS_PATTERN_6PLAYER, MULTI_MAP_PATTERN_3PLAYER, MULTI_MAP_PATTERN_4PLAYER, MULTI_MAP_PATTERN_5PLAYER, MULTI_MAP_PATTERN_6PLAYER, MULTI_MAP_PATTERN_6A, MULTI_MAP_PATTERN_4A, MULTI_MAP_PATTERN_4B, MULTI_MAP_PATTERN_5B } from './song-implications-data';
 
 export interface SongImplications {
   songA: string; // Turn order string with player indices (e.g., "012012")
@@ -107,7 +107,9 @@ export function getSongImplications(
     let pattern: SongImplicationPattern;
 
     // Handle variants first
-    if (gameVariant === "4B" && playerCount === 4) {
+    if (gameVariant === "4A" && playerCount === 4) {
+      pattern = MULTI_MAP_PATTERN_4A;
+    } else if (gameVariant === "4B" && playerCount === 4) {
       pattern = MULTI_MAP_PATTERN_4B;
     } else if (gameVariant === "5B" && playerCount === 5) {
       pattern = MULTI_MAP_PATTERN_5B;
@@ -215,7 +217,9 @@ export function getTokensPerRound(playerCount: number): number {
 export function getTotalRounds(playerCount: number, usePOTS?: boolean, useMultiMap?: boolean, gameVariant?: string | null): number {
   if (useMultiMap) {
     // Handle variants first
-    if (gameVariant === "4B" && playerCount === 4) {
+    if (gameVariant === "4A" && playerCount === 4) {
+      return MULTI_MAP_PATTERN_4A.totalRounds;
+    } else if (gameVariant === "4B" && playerCount === 4) {
       return MULTI_MAP_PATTERN_4B.totalRounds;
     } else if (gameVariant === "5B" && playerCount === 5) {
       return MULTI_MAP_PATTERN_5B.totalRounds;
