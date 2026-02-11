@@ -23,6 +23,7 @@ import { deserializeMapLayout } from "@/lib/game/map-generator";
 import { calculateSymbolsCollected, calculatePowerHubScores, calculateMoneyPoints } from "@/lib/game/end-game-scoring";
 import { HexIcon } from "./HexIcon";
 import { deserializeInventory, CardInventory, calculateTotalValue } from "@/lib/game/card-inventory";
+import { PlayerAid } from "./PlayerAid";
 
 export function GameBoard() {
   const { gameState, loading, error, submitBid, advanceGame } = useGame();
@@ -215,7 +216,7 @@ export function GameBoard() {
     return null;
   }
 
-  const { game, players: allPlayers, currentBid, biddingState, allBids: allBidsRaw, promisePhaseBids: allPromisePhaseBids } = gameState;
+  const { game, players: allPlayers, currentBid, biddingState, allBids: allBidsRaw, promisePhaseBids: allPromisePhaseBids, bribePhaseBids: allBribePhaseBids } = gameState;
 
   // Filter out NPC player from display
   const players = allPlayers.filter(p => p.name !== 'NPC');
@@ -223,6 +224,7 @@ export function GameBoard() {
   // Filter out NPC bids from all bids and promise phase
   const allBids = allBidsRaw?.filter(bid => bid.playerName !== 'NPC') || null;
   const promisePhaseBids = allPromisePhaseBids?.filter(bid => bid.playerName !== 'NPC') || null;
+  const bribePhaseBids = allBribePhaseBids?.filter(bid => bid.playerName !== 'NPC') || null;
 
   const myPlayer = players.find(p => p.isMe);
   const currencyBalance = myPlayer?.currencyBalance || 0;
@@ -317,6 +319,9 @@ export function GameBoard() {
   // Main game view
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-50 py-8 px-4">
+      {/* Player Aid - Floating in upper left corner */}
+      <PlayerAid playerCount={players.length} />
+
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
@@ -386,54 +391,146 @@ export function GameBoard() {
         {currentView === 'game' && (
           <>
             {/* Waiting Messages - Always at Top */}
-            {(game.status === "ROUND1" || game.status === "ROUND2") && currentBid && (
-              <div className="mb-6">
-                <Card>
-                  <CardContent className="py-12 text-center">
-                    <div className="text-6xl mb-4">⏳</div>
-                    <h2 className="text-2xl font-bold text-gray-800 mb-2">
-                      {currentBid.round === 1 ? (
-                        currentBid.amount === 0 ? "Promise Submitted!" : "Waiting on other players"
-                      ) : (
-                        "Bribe Submitted!"
-                      )}
-                    </h2>
-                    <p className="text-gray-600 mb-4">
-                      You {currentBid.round === 1 ? "promised" : "bribed"} <span className="font-bold text-blue-600">${currentBid.amount}</span> on{" "}
-                      <span className="font-bold text-blue-600">Song {currentBid.song}</span>
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      {currentBid.round === 1 && currentBid.amount === 0 ? (
-                        "Waiting for other Promise Phase players..."
-                      ) : currentBid.round === 1 && currentBid.amount > 0 ? (
-                        promisePhaseBids && promisePhaseBids.length > 0 ? (
-                          "Waiting for Bribe Phase players to submit their bids..."
+            {(game.status === "ROUND1" || game.status === "ROUND2") && currentBid && (() => {
+              // Calculate which players haven't submitted yet
+              const allPlayerIds = players.filter(p => !p.isMe).map(p => p.id); // All other players (excluding me)
+              const allPlayerNames = new Map(players.map(p => [p.id, p.name]));
+
+              let playersWaitingOn: string[] = [];
+
+              if (currentBid.round === 1) {
+                // If I submitted a promise, check if we're still in promise phase or if bribe phase has started
+                const round1BidPlayerIds = (promisePhaseBids || []).map(b => b.playerId);
+
+                // Check if all promise phase bids are in
+                const allPromisesIn = allPlayerIds.every(id => round1BidPlayerIds.includes(id));
+
+                if (!allPromisesIn) {
+                  // Still waiting for promise phase players
+                  const waitingIds = allPlayerIds.filter(id => !round1BidPlayerIds.includes(id));
+                  playersWaitingOn = waitingIds.map(id => allPlayerNames.get(id) || 'Unknown').filter(name => name !== 'Unknown');
+                } else {
+                  // All promises are in, check if we're waiting for bribe phase players
+                  const round1ZeroBidders = (promisePhaseBids || []).filter(b => b.amount === 0).map(b => b.playerId);
+                  const round2BidPlayerIds = (bribePhaseBids || []).map(b => b.playerId);
+
+                  // Players waiting are those who bid $0 in round 1 but haven't submitted round 2 bid yet
+                  playersWaitingOn = round1ZeroBidders
+                    .filter(id => !round2BidPlayerIds.includes(id))
+                    .map(id => allPlayerNames.get(id) || 'Unknown')
+                    .filter(name => name !== 'Unknown');
+                }
+              } else if (currentBid.round === 2) {
+                // Bribe phase: check who bid $0 in round 1 and hasn't submitted round 2 bid yet
+                const round1ZeroBidders = (promisePhaseBids || []).filter(b => b.amount === 0).map(b => b.playerId);
+                const round2BidPlayerIds = (bribePhaseBids || []).map(b => b.playerId);
+                const myId = players.find(p => p.isMe)?.id;
+
+                // Players waiting are those who bid $0 in round 1 but haven't submitted round 2 bid yet
+                playersWaitingOn = round1ZeroBidders
+                  .filter(id => id !== myId && !round2BidPlayerIds.includes(id))
+                  .map(id => allPlayerNames.get(id) || 'Unknown')
+                  .filter(name => name !== 'Unknown');
+              }
+
+              return (
+                <div className="mb-6">
+                  <Card>
+                    <CardContent className="py-12 text-center">
+                      <div className="text-6xl mb-4">⏳</div>
+                      <h2 className="text-2xl font-bold text-gray-800 mb-2">
+                        {currentBid.round === 1 ? (
+                          currentBid.amount === 0 ? "Promise Submitted!" : "Waiting on other players"
                         ) : (
-                          "Waiting for other Promise Phase players..."
-                        )
-                      ) : (
-                        "Waiting for other players..."
+                          "Bribe Submitted!"
+                        )}
+                      </h2>
+                      <p className="text-gray-600 mb-4">
+                        You {currentBid.round === 1 ? "promised" : "bribed"} <span className="font-bold text-blue-600">${currentBid.amount}</span> on{" "}
+                        <span className="font-bold text-blue-600">Song {currentBid.song}</span>
+                      </p>
+
+                      {/* Show who we're waiting on */}
+                      {playersWaitingOn.length > 0 && (
+                        <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                          <p className="text-sm font-semibold text-blue-900 mb-1">
+                            Waiting on:
+                          </p>
+                          <p className="text-sm text-blue-800">
+                            {playersWaitingOn.join(', ')}
+                          </p>
+                        </div>
                       )}
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
+
+                      <p className="text-sm text-gray-500 mt-4">
+                        {currentBid.round === 1 && currentBid.amount === 0 ? (
+                          playersWaitingOn.length > 0 ? (
+                            "Waiting for other Promise Phase players..."
+                          ) : (
+                            "All Promise Phase bids submitted!"
+                          )
+                        ) : currentBid.round === 1 && currentBid.amount > 0 ? (
+                          promisePhaseBids && promisePhaseBids.length > 0 ? (
+                            "Waiting for Bribe Phase players to submit their bids..."
+                          ) : (
+                            playersWaitingOn.length > 0 ? (
+                              "Waiting for other Promise Phase players..."
+                            ) : (
+                              "All Promise Phase bids submitted!"
+                            )
+                          )
+                        ) : (
+                          playersWaitingOn.length > 0 ? (
+                            "Waiting for other Bribe Phase players..."
+                          ) : (
+                            "All Bribe Phase bids submitted!"
+                          )
+                        )}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </div>
+              );
+            })()}
 
             {/* Bribe Phase in Progress - Also at Top */}
-            {(game.status === "ROUND1" || game.status === "ROUND2") && !currentBid && biddingState.waitingForRound2 && (
-              <div className="mb-6">
-                <Card>
-                  <CardContent className="py-12 text-center">
-                    <div className="text-6xl mb-4">⏳</div>
-                    <h2 className="text-2xl font-bold text-gray-800 mb-2">Bribe Phase in Progress</h2>
-                    <p className="text-gray-600">
-                      Players who bid 0 in the Promise Phase are now making their bids...
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
+            {(game.status === "ROUND1" || game.status === "ROUND2") && !currentBid && biddingState.waitingForRound2 && (() => {
+              // Calculate which bribe phase players haven't submitted yet
+              const allPlayerNames = new Map(players.map(p => [p.id, p.name]));
+              const round1ZeroBidders = (promisePhaseBids || []).filter(b => b.amount === 0).map(b => b.playerId);
+              const round2BidPlayerIds = (bribePhaseBids || []).map(b => b.playerId);
+
+              const playersWaitingOn = round1ZeroBidders
+                .filter(id => !round2BidPlayerIds.includes(id))
+                .map(id => allPlayerNames.get(id) || 'Unknown')
+                .filter(name => name !== 'Unknown');
+
+              return (
+                <div className="mb-6">
+                  <Card>
+                    <CardContent className="py-12 text-center">
+                      <div className="text-6xl mb-4">⏳</div>
+                      <h2 className="text-2xl font-bold text-gray-800 mb-2">Bribe Phase in Progress</h2>
+                      <p className="text-gray-600 mb-4">
+                        Players who bid 0 in the Promise Phase are now making their bids...
+                      </p>
+
+                      {/* Show who we're waiting on */}
+                      {playersWaitingOn.length > 0 && (
+                        <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                          <p className="text-sm font-semibold text-blue-900 mb-1">
+                            Waiting on:
+                          </p>
+                          <p className="text-sm text-blue-800">
+                            {playersWaitingOn.join(', ')}
+                          </p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              );
+            })()}
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column - Player List */}

@@ -63,6 +63,13 @@ interface GameState {
     amount: number;
     round: number;
   }> | null;
+  bribePhaseBids: Array<{
+    playerId: string;
+    playerName?: string;
+    song: string;
+    amount: number;
+    round: number;
+  }> | null;
   allBids: Array<{
     playerId: string;
     playerName?: string;

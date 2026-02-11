@@ -124,7 +124,15 @@ export async function GET(
         waitingForRound2: allPlayersSubmittedRound1 && !needsRound2Bid && round2Bids.length < round1Bids.filter(b => b.amount === 0).length,
       },
       // Show Promise Phase (round 1) bids during Bribe Phase (ROUND2 status)
-      promisePhaseBids: (game.status === "ROUND2" || game.status === "RESULTS") ? round1Bids.map(b => ({
+      promisePhaseBids: (game.status === "ROUND1" || game.status === "ROUND2" || game.status === "RESULTS") ? round1Bids.map(b => ({
+        playerId: b.playerId,
+        playerName: game.players.find(p => p.id === b.playerId)?.name,
+        song: b.song,
+        amount: b.amount,
+        round: b.round,
+      })) : null,
+      // Show round 2 bids during ROUND2 status for tracking who has submitted
+      bribePhaseBids: (game.status === "ROUND2" || game.status === "RESULTS") ? round2Bids.map(b => ({
         playerId: b.playerId,
         playerName: game.players.find(p => p.id === b.playerId)?.name,
         song: b.song,

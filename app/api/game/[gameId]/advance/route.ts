@@ -408,6 +408,16 @@ export async function POST(
 
         const highlightedEdges = JSON.parse(game.highlightedEdges);
 
+        console.log('Transitioning RESULTS → TOKEN_PLACEMENT', {
+          gameId,
+          winningSong: game.winningSong,
+          turnOrderA: game.turnOrderA ? 'exists' : 'null',
+          turnOrderB: game.turnOrderB ? 'exists' : 'null',
+          turnOrderC: game.turnOrderC ? 'exists' : 'null',
+          turnOrderD: game.turnOrderD ? 'exists' : 'null',
+          highlightedEdgesCount: highlightedEdges.length,
+        });
+
         await prisma.game.update({
           where: { id: gameId },
           data: {
@@ -420,11 +430,14 @@ export async function POST(
 
         // Process AI token placements immediately
         try {
+          console.log('About to call processAllAITokenPlacements for game:', gameId);
           const allTokensPlaced = await processAllAITokenPlacements(gameId);
-          console.log('AI token placements processed successfully, all placed:', allTokensPlaced);
+          console.log('✅ processAllAITokenPlacements completed. Result (all placed?):', allTokensPlaced);
 
           // If AI players placed all tokens, advance to next round
           if (allTokensPlaced) {
+            console.log('⚠️ ALL TOKENS MARKED AS PLACED - Advancing to next round (THIS SHOULD NOT HAPPEN IN HUMAN GAMES!)');
+
             // Clear token placement data
             await prisma.game.update({
               where: { id: gameId },

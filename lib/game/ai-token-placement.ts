@@ -733,7 +733,10 @@ export async function processAllAITokenPlacements(gameId: string): Promise<boole
     include: { players: true },
   });
 
-  if (!game) return false;
+  if (!game) {
+    console.error('processAllAITokenPlacements: Game not found');
+    return false;
+  }
 
   const getTurnOrder = (): string[] => {
     // For FINAL_PLACEMENT, use turnOrderA which stores the money-based turn order
@@ -745,12 +748,35 @@ export async function processAllAITokenPlacements(gameId: string): Promise<boole
     if (game.winningSong === 'B' && game.turnOrderB) return JSON.parse(game.turnOrderB);
     if (game.winningSong === 'C' && game.turnOrderC) return JSON.parse(game.turnOrderC);
     if (game.winningSong === 'D' && game.turnOrderD) return JSON.parse(game.turnOrderD);
+
+    console.error('processAllAITokenPlacements: Turn order not found!', {
+      status: game.status,
+      winningSong: game.winningSong,
+      hasTurnOrderA: !!game.turnOrderA,
+      hasTurnOrderB: !!game.turnOrderB,
+      hasTurnOrderC: !!game.turnOrderC,
+      hasTurnOrderD: !!game.turnOrderD,
+    });
     return [];
   };
 
   const turnOrder = getTurnOrder();
   const currentTurnIndex = game.currentTurnIndex ?? 0;
 
+  // CRITICAL FIX: If turn order is empty, we should NOT consider all tokens placed
+  // Empty turn order indicates a configuration error, not completion
+  if (turnOrder.length === 0) {
+    console.error('processAllAITokenPlacements: Turn order is empty - tokens NOT placed');
+    return false;
+  }
+
+  const allPlaced = currentTurnIndex >= turnOrder.length;
+  console.log('processAllAITokenPlacements: Check completion', {
+    currentTurnIndex,
+    turnOrderLength: turnOrder.length,
+    allPlaced,
+  });
+
   // All tokens placed if we've gone through the entire turn order
-  return currentTurnIndex >= turnOrder.length;
+  return allPlaced;
 }
