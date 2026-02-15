@@ -6,7 +6,7 @@
  * Also supports POTS mode with fixed implications
  */
 
-import { SONG_IMPLICATION_PATTERNS, SongImplicationPattern, POTS_PATTERN, POTS_PATTERN_4PLAYER, POTS_PATTERN_5PLAYER, POTS_PATTERN_6PLAYER, MULTI_MAP_PATTERN_3PLAYER, MULTI_MAP_PATTERN_4PLAYER, MULTI_MAP_PATTERN_5PLAYER, MULTI_MAP_PATTERN_6PLAYER, MULTI_MAP_PATTERN_6A, MULTI_MAP_PATTERN_4A, MULTI_MAP_PATTERN_4B, MULTI_MAP_PATTERN_5B } from './song-implications-data';
+import { SONG_IMPLICATION_PATTERNS, SongImplicationPattern, POTS_PATTERN, POTS_PATTERN_4PLAYER, POTS_PATTERN_5PLAYER, POTS_PATTERN_6PLAYER, MULTI_MAP_PATTERN_3PLAYER, MULTI_MAP_PATTERN_4PLAYER, MULTI_MAP_PATTERN_5PLAYER, MULTI_MAP_PATTERN_6PLAYER, MULTI_MAP_PATTERN_6A, MULTI_MAP_PATTERN_4A, MULTI_MAP_PATTERN_4B, MULTI_MAP_PATTERN_5A, MULTI_MAP_PATTERN_5B } from './song-implications-data';
 
 export interface SongImplications {
   songA: string; // Turn order string with player indices (e.g., "012012")
@@ -111,6 +111,8 @@ export function getSongImplications(
       pattern = MULTI_MAP_PATTERN_4A;
     } else if (gameVariant === "4B" && playerCount === 4) {
       pattern = MULTI_MAP_PATTERN_4B;
+    } else if (gameVariant === "5A" && playerCount === 5) {
+      pattern = MULTI_MAP_PATTERN_5A;
     } else if (gameVariant === "5B" && playerCount === 5) {
       pattern = MULTI_MAP_PATTERN_5B;
     } else if ((gameVariant === "6A" || gameVariant === "6B") && playerCount === 6) {
@@ -221,6 +223,8 @@ export function getTotalRounds(playerCount: number, usePOTS?: boolean, useMultiM
       return MULTI_MAP_PATTERN_4A.totalRounds;
     } else if (gameVariant === "4B" && playerCount === 4) {
       return MULTI_MAP_PATTERN_4B.totalRounds;
+    } else if (gameVariant === "5A" && playerCount === 5) {
+      return MULTI_MAP_PATTERN_5A.totalRounds;
     } else if (gameVariant === "5B" && playerCount === 5) {
       return MULTI_MAP_PATTERN_5B.totalRounds;
     } else if ((gameVariant === "6A" || gameVariant === "6B") && playerCount === 6) {

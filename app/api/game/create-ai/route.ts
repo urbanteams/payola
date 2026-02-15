@@ -55,7 +55,8 @@ export async function POST(request: NextRequest) {
     // Generate FIRST map with appropriate edge count for variants
     const edgeCount = selectedVariant === "3B" ? 15  // 3B variant uses NYC15
                     : (selectedVariant === "4A" || selectedVariant === "4B") ? 20  // 4A/4B variants use NYC20 (4 tokens × 5 rounds = 20)
-                    : selectedVariant === "5B" ? 20  // 5B variant uses NYC20 (5 tokens × 4 rounds = 20)
+                    : selectedVariant === "5A" ? 20  // 5A variant uses NYC20 (5 tokens × 4 rounds = 20)
+                    : selectedVariant === "5B" ? 25  // 5B variant uses NYC25 (5 tokens × 5 rounds = 25)
                     : 30; // 6B variant uses NYC30 (6 tokens × 5 rounds = 30)
     const includeClassicalStars = selectedVariant === "6B"; // Only 6B gets Classical Stars
     const noMoneyHub = true; // All variants replace Money Hub with Household

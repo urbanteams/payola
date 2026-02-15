@@ -36,6 +36,7 @@ interface ResultsDisplayProps {
   currentRound?: number; // Current round number
   totalRounds?: number; // Total rounds in the game
   gameVariant?: string | null; // Game variant
+  isSpectator?: boolean; // Is spectator mode
 }
 
 export function ResultsDisplay({
@@ -52,7 +53,8 @@ export function ResultsDisplay({
   isPOTS = false,
   currentRound = 1,
   totalRounds,
-  gameVariant
+  gameVariant,
+  isSpectator = false
 }: ResultsDisplayProps) {
   // Determine which songs are available based on which turn orders exist
   const availableSongs: Array<"A" | "B" | "C" | "D"> = [];
@@ -237,29 +239,31 @@ export function ResultsDisplay({
           </p>
         </div>
 
-        {/* Action Buttons */}
-        <div className="grid grid-cols-2 gap-4">
-          <Button
-            variant="secondary"
-            onClick={onFinishGame}
-            disabled={isAdvancing}
-            className="w-full"
-          >
-            End Game
-          </Button>
-          <Button
-            onClick={onNextRound}
-            disabled={isAdvancing || countdown > 0}
-            className="w-full"
-          >
-            {isAdvancing
-              ? (isPOTS && currentRound === totalRounds ? "Advancing to Final Placement..." : "Advancing to Placement...")
-              : countdown > 0
-                ? (isPOTS && currentRound === totalRounds ? `Advance to Final Placement (${countdown}s)` : `Advance to Placement (${countdown}s)`)
-                : (isPOTS && currentRound === totalRounds ? "Advance to Final Placement" : "Advance to Placement")
-            }
-          </Button>
-        </div>
+        {/* Action Buttons - Hidden for spectators */}
+        {!isSpectator && (
+          <div className="grid grid-cols-2 gap-4">
+            <Button
+              variant="secondary"
+              onClick={onFinishGame}
+              disabled={isAdvancing}
+              className="w-full"
+            >
+              End Game
+            </Button>
+            <Button
+              onClick={onNextRound}
+              disabled={isAdvancing || countdown > 0}
+              className="w-full"
+            >
+              {isAdvancing
+                ? (isPOTS && currentRound === totalRounds ? "Advancing to Final Placement..." : "Advancing to Placement...")
+                : countdown > 0
+                  ? (isPOTS && currentRound === totalRounds ? `Advance to Final Placement (${countdown}s)` : `Advance to Placement (${countdown}s)`)
+                  : (isPOTS && currentRound === totalRounds ? "Advance to Final Placement" : "Advance to Placement")
+              }
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

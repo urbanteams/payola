@@ -28,6 +28,7 @@ interface FirstMapCompletedScreenProps {
   }>;
   onAdvanceToSecondMap: () => void;
   isAdvancing: boolean;
+  isSpectator?: boolean;
 }
 
 export function FirstMapCompletedScreen({
@@ -38,6 +39,7 @@ export function FirstMapCompletedScreen({
   tokens,
   onAdvanceToSecondMap,
   isAdvancing,
+  isSpectator = false,
 }: FirstMapCompletedScreenProps) {
   const mapLayout = deserializeMapLayout(firstMapLayout);
   const symbolCounts = JSON.parse(firstMapResults);
@@ -137,16 +139,18 @@ export function FirstMapCompletedScreen({
         </CardContent>
       </Card>
 
-      {/* Advance Button */}
-      <div className="flex justify-center mb-6">
-        <Button
-          onClick={onAdvanceToSecondMap}
-          disabled={isAdvancing}
-          className="bg-blue-500 hover:bg-blue-600 text-white px-8 py-3 text-lg"
-        >
-          {isAdvancing ? "Loading..." : "Advance to Second Map"}
-        </Button>
-      </div>
+      {/* Advance Button - Hidden for spectators */}
+      {!isSpectator && (
+        <div className="flex justify-center mb-6">
+          <Button
+            onClick={onAdvanceToSecondMap}
+            disabled={isAdvancing}
+            className="bg-blue-500 hover:bg-blue-600 text-white px-8 py-3 text-lg"
+          >
+            {isAdvancing ? "Loading..." : "Advance to Second Map"}
+          </Button>
+        </div>
+      )}
     </>
   );
 }

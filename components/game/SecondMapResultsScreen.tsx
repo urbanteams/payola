@@ -27,6 +27,7 @@ interface SecondMapResultsScreenProps {
   }>;
   onAdvanceToFinalResults: () => void;
   isAdvancing: boolean;
+  isSpectator?: boolean;
 }
 
 export function SecondMapResultsScreen({
@@ -36,6 +37,7 @@ export function SecondMapResultsScreen({
   tokens,
   onAdvanceToFinalResults,
   isAdvancing,
+  isSpectator = false,
 }: SecondMapResultsScreenProps) {
   const mapLayout = deserializeMapLayout(secondMapLayout);
 
@@ -198,16 +200,18 @@ export function SecondMapResultsScreen({
         </CardContent>
       </Card>
 
-      {/* Advance Button */}
-      <div className="flex justify-center mb-6">
-        <Button
-          onClick={onAdvanceToFinalResults}
-          disabled={isAdvancing}
-          className="bg-green-500 hover:bg-green-600 text-white px-8 py-3 text-lg"
-        >
-          {isAdvancing ? "Loading..." : "View Final Results"}
-        </Button>
-      </div>
+      {/* Advance Button - Hidden for spectators */}
+      {!isSpectator && (
+        <div className="flex justify-center mb-6">
+          <Button
+            onClick={onAdvanceToFinalResults}
+            disabled={isAdvancing}
+            className="bg-green-500 hover:bg-green-600 text-white px-8 py-3 text-lg"
+          >
+            {isAdvancing ? "Loading..." : "View Final Results"}
+          </Button>
+        </div>
+      )}
     </>
   );
 }

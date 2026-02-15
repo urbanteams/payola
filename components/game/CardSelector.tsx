@@ -28,8 +28,8 @@ export default function CardSelector({
   let maxCards: number;
   if (isFinalRound) {
     maxCards = Infinity; // Final round: unlimited cards
-  } else if (gameVariant === "5B") {
-    // 5B variant: R1-4 = 1 card, R5-7 = 2 cards, R8 = unlimited
+  } else if (gameVariant === "5A") {
+    // 5A variant: R1-4 = 1 card, R5-7 = 2 cards, R8 = unlimited
     maxCards = currentRound <= 4 ? 1 : 2;
   } else {
     // Default (3B, 4B, 6B): R1-5 = 1 card, R6+ = 2 cards, final = unlimited

@@ -132,7 +132,7 @@ export function BiddingPanel({ currencyBalance, round, onSubmitBid, disabled = f
                 value={bidAmount}
                 onChange={(e) => setBidAmount(Math.max(0, Math.min(currencyBalance, parseInt(e.target.value) || 0)))}
                 disabled={disabled || submitting}
-                className="w-full pl-8 pr-4 py-3 text-2xl font-bold border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none disabled:opacity-50 text-gray-900"
+                className="w-full pl-8 pr-4 py-3 text-2xl font-bold border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none disabled:opacity-50 text-gray-900 bg-white"
                 placeholder="0"
               />
             </div>

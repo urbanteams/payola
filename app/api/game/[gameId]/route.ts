@@ -32,9 +32,12 @@ export async function GET(
       return NextResponse.json({ error: "Game not found" }, { status: 404 });
     }
 
-    // Verify player is in this game
-    const currentPlayer = game.players.find(p => p.id === session.playerId);
-    if (!currentPlayer) {
+    // Check if user is a spectator (no playerId or not in players list)
+    const isSpectator = !session.playerId || !game.players.find(p => p.id === session.playerId);
+
+    // Verify player is in this game (unless spectator)
+    const currentPlayer = session.playerId ? game.players.find(p => p.id === session.playerId) : null;
+    if (!isSpectator && !currentPlayer) {
       return NextResponse.json(
         { error: "You are not a player in this game" },
         { status: 403 }
@@ -43,17 +46,17 @@ export async function GET(
 
     // Get current round bids
     const currentRoundBids = game.bids.filter(b => b.gameRound === game.roundNumber);
-    const myBid = currentRoundBids.find(b => b.playerId === session.playerId);
+    const myBid = !isSpectator && session.playerId ? currentRoundBids.find(b => b.playerId === session.playerId) : null;
 
     // Determine which round we're in
     const round1Bids = currentRoundBids.filter(b => b.round === 1);
     const round2Bids = currentRoundBids.filter(b => b.round === 2);
     const allPlayersSubmittedRound1 = game.players.length > 0 && round1Bids.length === game.players.length;
 
-    // Check if player needs to submit Round 2 bid
+    // Check if player needs to submit Round 2 bid (spectators never need to submit)
     // Only show Bribe Phase interface after ALL Promise Phase bids are submitted
-    const myRound1Bid = round1Bids.find(b => b.playerId === session.playerId);
-    const needsRound2Bid = allPlayersSubmittedRound1 && myRound1Bid?.amount === 0 && !round2Bids.find(b => b.playerId === session.playerId);
+    const myRound1Bid = !isSpectator && session.playerId ? round1Bids.find(b => b.playerId === session.playerId) : null;
+    const needsRound2Bid = !isSpectator && allPlayersSubmittedRound1 && myRound1Bid?.amount === 0 && session.playerId && !round2Bids.find(b => b.playerId === session.playerId);
 
     // Fetch all tokens for any state where map is shown
     const tokens = await prisma.influenceToken.findMany({
@@ -101,8 +104,10 @@ export async function GET(
         victoryPoints: p.victoryPoints,
         playerColor: p.playerColor,
         cardInventory: p.cardInventory, // Include card inventory for 3B variant
-        isMe: p.id === session.playerId,
+        isAI: p.isAI, // Include AI flag to determine if game has AI players
+        isMe: !isSpectator && p.id === session.playerId,
       })),
+      isSpectator, // Add spectator flag to response
       tokens: tokens.map(t => ({
         id: t.id,
         edgeId: t.edgeId,

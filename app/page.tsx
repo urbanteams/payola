@@ -14,6 +14,7 @@ export default function Home() {
   const [error, setError] = useState("");
   const [aiPlayerCount, setAiPlayerCount] = useState<3 | 4 | 5 | 6>(3);
   const [fourPlayerVariant, setFourPlayerVariant] = useState<"4A" | "4B">("4B");
+  const [fivePlayerVariant, setFivePlayerVariant] = useState<"5A" | "5B">("5B");
 
   const handleCreateGame = async () => {
     if (!playerName.trim()) {
@@ -103,7 +104,7 @@ export default function Home() {
         body: JSON.stringify({
           playerName: playerName.trim(),
           playerCount: aiPlayerCount,
-          gameVariant: aiPlayerCount === 4 ? fourPlayerVariant : undefined
+          gameVariant: aiPlayerCount === 4 ? fourPlayerVariant : aiPlayerCount === 5 ? fivePlayerVariant : undefined
         }),
       });
 
@@ -236,7 +237,7 @@ export default function Home() {
                   onChange={(e) => setPlayerName(e.target.value)}
                   placeholder="Enter your name"
                   disabled={loading}
-                  className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none disabled:opacity-50 text-gray-900"
+                  className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none disabled:opacity-50 text-gray-900 bg-white"
                   onKeyDown={(e) => e.key === "Enter" && handleCreateGame()}
                 />
               </div>
@@ -268,7 +269,7 @@ export default function Home() {
                   onChange={(e) => setPlayerName(e.target.value)}
                   placeholder="Enter your name"
                   disabled={loading}
-                  className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none disabled:opacity-50 text-gray-900"
+                  className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none disabled:opacity-50 text-gray-900 bg-white"
                   onKeyDown={(e) => e.key === "Enter" && handleCreateAIGame()}
                 />
               </div>
@@ -327,6 +328,38 @@ export default function Home() {
                 </div>
               )}
 
+              {aiPlayerCount === 5 && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    5-Player Variant:
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => setFivePlayerVariant("5A")}
+                      disabled={loading}
+                      className={`px-4 py-3 rounded-lg font-semibold transition-colors ${
+                        fivePlayerVariant === "5A"
+                          ? "bg-purple-600 text-white"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      } disabled:opacity-50`}
+                    >
+                      5A (3 Songs)
+                    </button>
+                    <button
+                      onClick={() => setFivePlayerVariant("5B")}
+                      disabled={loading}
+                      className={`px-4 py-3 rounded-lg font-semibold transition-colors ${
+                        fivePlayerVariant === "5B"
+                          ? "bg-purple-600 text-white"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      } disabled:opacity-50`}
+                    >
+                      5B (4 Songs)
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {error && (
                 <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
                   {error}
@@ -361,7 +394,7 @@ export default function Home() {
                   onChange={(e) => setPlayerName(e.target.value)}
                   placeholder="Enter your name"
                   disabled={loading}
-                  className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none disabled:opacity-50 text-gray-900"
+                  className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none disabled:opacity-50 text-gray-900 bg-white"
                 />
               </div>
 
@@ -376,7 +409,7 @@ export default function Home() {
                   placeholder="Enter 6-character code"
                   maxLength={6}
                   disabled={loading}
-                  className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none disabled:opacity-50 uppercase text-center text-2xl tracking-widest font-bold text-gray-900"
+                  className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none disabled:opacity-50 uppercase text-center text-2xl tracking-widest font-bold text-gray-900 bg-white"
                   onKeyDown={(e) => e.key === "Enter" && handleJoinGame()}
                 />
               </div>

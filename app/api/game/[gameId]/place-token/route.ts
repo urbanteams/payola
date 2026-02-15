@@ -142,8 +142,8 @@ export async function POST(
     if (game.isMultiMap) {
       // Helper function to calculate rounds per map
       const getRoundsPerMap = (playerCount: number, gameVariant?: string | null): number => {
-        // 5B variant uses 4 rounds per map (5 tokens × 4 rounds = 20 edges on NYC20)
-        if (gameVariant === "5B") return 4;
+        // 5A variant uses 4 rounds per map (5 tokens × 4 rounds = 20 edges on NYC20)
+        if (gameVariant === "5A") return 4;
         if (playerCount === 3) return 5;
         if (playerCount === 4) return 5; // 4-player: 5 rounds per map
         if (playerCount === 5) return 5; // 5-player: 5 rounds per map (5 tokens × 5 = 25 edges on NYC25)
@@ -299,8 +299,8 @@ export async function POST(
       if (game.isMultiMap) {
         // Helper function to calculate rounds per map
         const getRoundsPerMap = (playerCount: number, gameVariant?: string | null): number => {
-          // 5B variant uses 4 rounds per map (5 tokens × 4 rounds = 20 edges on NYC20)
-          if (gameVariant === "5B") return 4;
+          // 5A variant uses 4 rounds per map (5 tokens × 4 rounds = 20 edges on NYC20)
+          if (gameVariant === "5A") return 4;
           if (playerCount === 3) return 5;
           if (playerCount === 4) return 5; // 4-player: 5 rounds per map
           if (playerCount === 5) return 5; // 5-player standard: 5 rounds per map (5 tokens × 5 = 25 edges on NYC25)
@@ -336,8 +336,8 @@ export async function POST(
 
         // Helper function to calculate rounds per map
         const getRoundsPerMap = (playerCount: number, gameVariant?: string | null): number => {
-          // 5B variant uses 4 rounds per map (5 tokens × 4 rounds = 20 edges on NYC20)
-          if (gameVariant === "5B") return 4;
+          // 5A variant uses 4 rounds per map (5 tokens × 4 rounds = 20 edges on NYC20)
+          if (gameVariant === "5A") return 4;
           if (playerCount === 3) return 5;
           if (playerCount === 4) return 5; // 4-player: 5 rounds per map
           if (playerCount === 5) return 5; // 5-player standard: 5 rounds per map (5 tokens × 5 = 25 edges on NYC25)
@@ -725,8 +725,8 @@ export async function POST(
               if (game.isMultiMap) {
                 // Helper function to calculate rounds per map
                 const getRoundsPerMap = (playerCount: number, gameVariant?: string | null): number => {
-                  // 5B variant uses 4 rounds per map (5 tokens × 4 rounds = 20 edges on NYC20)
-                  if (gameVariant === "5B") return 4;
+                  // 5A variant uses 4 rounds per map (5 tokens × 4 rounds = 20 edges on NYC20)
+                  if (gameVariant === "5A") return 4;
                   if (playerCount === 3) return 5;
                   if (playerCount === 4) return 5; // 4-player: 5 rounds per map
                   if (playerCount === 5) return 5; // 5-player standard: 5 rounds per map (5 tokens × 5 = 25 edges on NYC25)
@@ -761,8 +761,8 @@ export async function POST(
 
                 // Helper function to calculate rounds per map
                 const getRoundsPerMap = (playerCount: number, gameVariant?: string | null): number => {
-                  // 5B variant uses 4 rounds per map (5 tokens × 4 rounds = 20 edges on NYC20)
-                  if (gameVariant === "5B") return 4;
+                  // 5A variant uses 4 rounds per map (5 tokens × 4 rounds = 20 edges on NYC20)
+                  if (gameVariant === "5A") return 4;
                   if (playerCount === 3) return 5;
                   if (playerCount === 4) return 5; // 4-player: 5 rounds per map
                   if (playerCount === 5) return 5; // 5-player standard: 5 rounds per map (5 tokens × 5 = 25 edges on NYC25)

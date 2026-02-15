@@ -20,6 +20,7 @@ interface GameLobbyProps {
 export function GameLobby({ roomCode, players, onStartGame, isStarting }: GameLobbyProps) {
   const isCreator = players.length > 0 && players[0].isMe;
   const [fourPlayerVariant, setFourPlayerVariant] = useState<"4A" | "4B">("4B");
+  const [fivePlayerVariant, setFivePlayerVariant] = useState<"5A" | "5B">("5B");
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-50 flex items-center justify-center p-4">
@@ -68,20 +69,6 @@ export function GameLobby({ roomCode, players, onStartGame, isStarting }: GameLo
             </div>
           </div>
 
-          {/* Game Info */}
-          <div className="bg-gray-50 rounded-lg p-4 mb-6">
-            <h4 className="font-semibold text-gray-700 mb-2">How to Play:</h4>
-            <ul className="text-sm text-gray-600 space-y-1">
-              <li>• Each player starts with 30 currency</li>
-              <li>• Bid on Song A, B, or C in each round</li>
-              <li>• The song with the most bids wins</li>
-              <li>• Round 1 bidders only pay if they backed the winner</li>
-              <li>• Round 2 bidders always pay their bid</li>
-              <li>• The winning song determines how many influence tokens you place on the board</li>
-              <li>• Win the game by controlling different regions on the board</li>
-            </ul>
-          </div>
-
           {/* Variant Selection for 4 Players */}
           {isCreator && players.length === 4 && (
             <div className="mb-6">
@@ -122,10 +109,50 @@ export function GameLobby({ roomCode, players, onStartGame, isStarting }: GameLo
             </div>
           )}
 
+          {/* Variant Selection for 5 Players */}
+          {isCreator && players.length === 5 && (
+            <div className="mb-6">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Choose 5-Player Variant:
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => setFivePlayerVariant("5A")}
+                  disabled={isStarting}
+                  className={`px-4 py-3 rounded-lg font-semibold transition-colors ${
+                    fivePlayerVariant === "5A"
+                      ? "bg-indigo-600 text-white border-2 border-indigo-700"
+                      : "bg-white text-gray-700 border-2 border-gray-300 hover:border-indigo-400"
+                  } disabled:opacity-50`}
+                >
+                  <div className="font-bold">5A Variant</div>
+                  <div className="text-xs mt-1">3 Songs</div>
+                </button>
+                <button
+                  onClick={() => setFivePlayerVariant("5B")}
+                  disabled={isStarting}
+                  className={`px-4 py-3 rounded-lg font-semibold transition-colors ${
+                    fivePlayerVariant === "5B"
+                      ? "bg-indigo-600 text-white border-2 border-indigo-700"
+                      : "bg-white text-gray-700 border-2 border-gray-300 hover:border-indigo-400"
+                  } disabled:opacity-50`}
+                >
+                  <div className="font-bold">5B Variant</div>
+                  <div className="text-xs mt-1">4 Songs</div>
+                </button>
+              </div>
+              <p className="text-xs text-gray-600 mt-2">
+                {fivePlayerVariant === "5A"
+                  ? "Classic mode with 3 songs. 2-way ties trigger wheel spin."
+                  : "Enhanced mode with 4 songs. 2-way ties resolved by second-highest bid."}
+              </p>
+            </div>
+          )}
+
           {/* Start Button */}
           {isCreator && (
             <Button
-              onClick={() => onStartGame(players.length === 4 ? fourPlayerVariant : undefined)}
+              onClick={() => onStartGame(players.length === 4 ? fourPlayerVariant : players.length === 5 ? fivePlayerVariant : undefined)}
               disabled={players.length < 3 || isStarting}
               className="w-full text-lg py-3"
             >

@@ -81,8 +81,8 @@ export async function POST(
       );
     }
 
-    // Check if this is a card-based variant (3B or 6B)
-    const is3BVariant = game.gameVariant === "3B" || game.gameVariant === "4B" || game.gameVariant === "5B" || game.gameVariant === "6B";
+    // Check if this is a card-based variant (3B, 4A, 4B, 5B, 6B)
+    const is3BVariant = game.gameVariant === "3B" || game.gameVariant === "4A" || game.gameVariant === "4B" || game.gameVariant === "5A" || game.gameVariant === "5B" || game.gameVariant === "6B";
 
     // Validate bid based on variant
     if (is3BVariant) {
@@ -104,8 +104,8 @@ export async function POST(
       let maxCards: number;
       if (isFinalRound) {
         maxCards = Infinity; // Final round: unlimited cards for all variants
-      } else if (game.gameVariant === "5B") {
-        // 5B variant: R1-4 = 1 card, R5-7 = 2 cards, R8 = unlimited
+      } else if (game.gameVariant === "5A") {
+        // 5A variant: R1-4 = 1 card, R5-7 = 2 cards, R8 = unlimited
         maxCards = game.roundNumber <= 4 ? 1 : 2;
       } else {
         // Default (3B, 4B, 6B): R1-5 = 1 card, R6+ = 2 cards, final = unlimited
@@ -323,7 +323,7 @@ export async function POST(
           where: { id: game.id },
           include: { players: true },
         });
-        const is3BForDeductions = gameForDeductions?.gameVariant === "3B" || gameForDeductions?.gameVariant === "4B" || gameForDeductions?.gameVariant === "5B" || gameForDeductions?.gameVariant === "6B";
+        const is3BForDeductions = gameForDeductions?.gameVariant === "3B" || gameForDeductions?.gameVariant === "4A" || gameForDeductions?.gameVariant === "4B" || gameForDeductions?.gameVariant === "5A" || gameForDeductions?.gameVariant === "5B" || gameForDeductions?.gameVariant === "6B";
 
         // Handle card spending for 3B variant or currency deductions for standard
         if (is3BForDeductions && gameForDeductions) {
@@ -457,7 +457,7 @@ export async function POST(
                 deductions: Array.from(deductions.entries()),
               });
 
-              const is3BAI = updatedGame.gameVariant === "3B" || updatedGame.gameVariant === "4B" || updatedGame.gameVariant === "5B" || updatedGame.gameVariant === "6B";
+              const is3BAI = updatedGame.gameVariant === "3B" || updatedGame.gameVariant === "4A" || updatedGame.gameVariant === "4B" || updatedGame.gameVariant === "5A" || updatedGame.gameVariant === "5B" || updatedGame.gameVariant === "6B";
 
               // Handle card spending for 3B variant or currency deductions for standard
               if (is3BAI) {
@@ -541,7 +541,7 @@ export async function POST(
               deductions: Array.from(deductions.entries()),
             });
 
-            const is3BAI2 = updatedGame.gameVariant === "3B" || updatedGame.gameVariant === "4B" || updatedGame.gameVariant === "5B" || updatedGame.gameVariant === "6B";
+            const is3BAI2 = updatedGame.gameVariant === "3B" || updatedGame.gameVariant === "4A" || updatedGame.gameVariant === "4B" || updatedGame.gameVariant === "5A" || updatedGame.gameVariant === "5B" || updatedGame.gameVariant === "6B";
 
             // Handle card spending for 3B variant or currency deductions for standard
             if (is3BAI2) {
@@ -610,7 +610,7 @@ export async function POST(
             deductions: Array.from(deductions.entries()),
           });
 
-          const is3BAI3 = updatedGame.gameVariant === "3B" || updatedGame.gameVariant === "4B" || updatedGame.gameVariant === "5B" || updatedGame.gameVariant === "6B";
+          const is3BAI3 = updatedGame.gameVariant === "3B" || updatedGame.gameVariant === "4A" || updatedGame.gameVariant === "4B" || updatedGame.gameVariant === "5A" || updatedGame.gameVariant === "5B" || updatedGame.gameVariant === "6B";
 
           // Handle card spending for 3B variant or currency deductions for standard
           if (is3BAI3) {

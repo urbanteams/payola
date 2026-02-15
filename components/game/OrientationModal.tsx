@@ -89,7 +89,7 @@ export function OrientationModal({
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
       <div className="bg-gray-800 rounded-lg p-6 max-w-2xl w-full">
-        <h3 className="text-2xl font-bold mb-4">Choose Token Orientation</h3>
+        <h3 className="text-2xl font-bold mb-4 text-white">Choose Token Orientation</h3>
 
         <p className="text-gray-300 mb-6">
           Your {tokenType} token has two values. Choose which adjacent hex receives which value:
@@ -123,7 +123,7 @@ export function OrientationModal({
                 <div className="flex items-center gap-3 bg-gray-800 p-3 rounded">
                   <HexIcon type={getDisplayTypes(hex1)} className="text-3xl flex-shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold">{getHexLabel(getDisplayTypes(hex1))}</div>
+                    <div className="font-semibold text-white">{getHexLabel(getDisplayTypes(hex1))}</div>
                   </div>
                   <div className="text-2xl font-bold text-blue-400 flex-shrink-0 whitespace-nowrap">→ {optionAValues.hex1Value}</div>
                 </div>
@@ -133,7 +133,7 @@ export function OrientationModal({
                 <div className="flex items-center gap-3 bg-gray-800 p-3 rounded">
                   <HexIcon type={getDisplayTypes(hex2)} className="text-3xl flex-shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold">{getHexLabel(getDisplayTypes(hex2))}</div>
+                    <div className="font-semibold text-white">{getHexLabel(getDisplayTypes(hex2))}</div>
                   </div>
                   <div className="text-2xl font-bold text-blue-400 flex-shrink-0 whitespace-nowrap">→ {optionAValues.hex2Value}</div>
                 </div>
@@ -174,7 +174,7 @@ export function OrientationModal({
                 <div className="flex items-center gap-3 bg-gray-800 p-3 rounded">
                   <HexIcon type={getDisplayTypes(hex1)} className="text-3xl flex-shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold">{getHexLabel(getDisplayTypes(hex1))}</div>
+                    <div className="font-semibold text-white">{getHexLabel(getDisplayTypes(hex1))}</div>
                   </div>
                   <div className="text-2xl font-bold text-green-400 flex-shrink-0 whitespace-nowrap">→ {optionBValues.hex1Value}</div>
                 </div>
@@ -184,7 +184,7 @@ export function OrientationModal({
                 <div className="flex items-center gap-3 bg-gray-800 p-3 rounded">
                   <HexIcon type={getDisplayTypes(hex2)} className="text-3xl flex-shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold">{getHexLabel(getDisplayTypes(hex2))}</div>
+                    <div className="font-semibold text-white">{getHexLabel(getDisplayTypes(hex2))}</div>
                   </div>
                   <div className="text-2xl font-bold text-green-400 flex-shrink-0 whitespace-nowrap">→ {optionBValues.hex2Value}</div>
                 </div>
@@ -203,7 +203,7 @@ export function OrientationModal({
         {/* Special Hex Highlights */}
         {adjacentHexes.some((hex) => getHexTypes(hex).includes('powerHub') || getHexTypes(hex).includes('moneyHub')) && (
           <div className="bg-yellow-900 border border-yellow-700 p-4 rounded-lg mb-4">
-            <h4 className="font-bold mb-2 flex items-center gap-2">
+            <h4 className="font-bold mb-2 flex items-center gap-2 text-yellow-100">
               ⚠️ Immediate Reward Available!
             </h4>
             {adjacentHexes
@@ -226,7 +226,7 @@ export function OrientationModal({
           <button
             onClick={onCancel}
             disabled={isPlacing}
-            className="px-6 py-2 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-900 disabled:cursor-not-allowed rounded-lg font-semibold transition-colors"
+            className="px-6 py-2 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-900 disabled:cursor-not-allowed rounded-lg font-semibold transition-colors text-white"
           >
             {isPlacing ? 'Placing...' : 'Cancel'}
           </button>

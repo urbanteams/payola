@@ -14,8 +14,8 @@ import { deserializeInventory, addCards, serializeInventory, SECOND_MAP_CARDS } 
  * Calculate rounds per map for Multi-Map mode based on player count and variant
  */
 function getRoundsPerMap(playerCount: number, gameVariant?: string | null): number {
-  // 5B variant uses 4 rounds per map (5 tokens × 4 rounds = 20 edges on NYC20)
-  if (gameVariant === "5B") return 4;
+  // 5A variant uses 4 rounds per map (5 tokens × 4 rounds = 20 edges on NYC20)
+  if (gameVariant === "5A") return 4;
 
   if (playerCount === 3) return 5;
   if (playerCount === 4) return 5; // 4-player: 5 rounds per map (6 tokens × 5 = 30 edges on NYC30)
@@ -32,6 +32,11 @@ export async function POST(
     const { gameId } = await params;
     const body = await request.json();
     let { action, gameVariant: requestedVariant } = body; // "start" | "nextRound" | "startTokenPlacement" | "completeTokenPlacement" | "finish" | "viewFinalResults"
+
+    // Track whether we entered via completeTokenPlacement (which changes action to "nextRound" internally)
+    // This prevents a race condition where multiple players clicking "Advance to Placement" causes
+    // the game to skip TOKEN_PLACEMENT entirely (first click: RESULTS→TOKEN_PLACEMENT, second click: TOKEN_PLACEMENT→ROUND1)
+    let fromCompleteTokenPlacement = false;
 
     // completeTokenPlacement is called server-side from place-token route (which has auth)
     // So we skip session check for this action to allow internal calls
@@ -104,7 +109,8 @@ export async function POST(
       // Generate FIRST map with appropriate edge count for variants
       const edgeCount = gameVariant === "3B" ? 15  // 3B variant uses NYC15
                       : (gameVariant === "4A" || gameVariant === "4B") ? 20  // 4A/4B variants use NYC20 (4 tokens × 5 rounds = 20)
-                      : gameVariant === "5B" ? 20  // 5B variant uses NYC20 (5 tokens × 4 rounds = 20)
+                      : gameVariant === "5A" ? 20  // 5A variant uses NYC20 (5 tokens × 4 rounds = 20)
+                      : gameVariant === "5B" ? 25  // 5B variant uses NYC25 (5 tokens × 5 rounds = 25)
                       : 30; // 6B variant uses NYC30 (6 tokens × 5 rounds = 30)
       const includeClassicalStars = gameVariant === "6B"; // Only 6B gets Classical Stars
       const noMoneyHub = true; // All B variants replace Money Hub with Household
@@ -238,17 +244,18 @@ export async function POST(
       const playerCount = realPlayersSecondMap.length;
       const roundsPerMap = getRoundsPerMap(playerCount, game.gameVariant);
 
-      // Generate second map with NYC15 (for 3A/3B), NYC18 (3 players), NYC20 (4B/5B), NYC30 (4 players or 6A/6B), NYC25 (5 players), or NYC24 (6 players)
+      // Generate second map with NYC15 (for 3A/3B), NYC18 (3 players), NYC20 (4A/4B/5A), NYC25 (5B), NYC30 (4 players or 6A/6B), or NYC24 (6 players)
       const edgeCount = (game.gameVariant === "3A" || game.gameVariant === "3B") ? 15  // 3A/3B variants use NYC15
-                      : game.gameVariant === "4B" ? 20  // 4B variant uses NYC20 (4 tokens × 5 rounds = 20)
-                      : game.gameVariant === "5B" ? 20  // 5B variant uses NYC20 (5 tokens × 4 rounds = 20)
+                      : (game.gameVariant === "4A" || game.gameVariant === "4B") ? 20  // 4A/4B variants use NYC20 (4 tokens × 5 rounds = 20)
+                      : game.gameVariant === "5A" ? 20  // 5A variant uses NYC20 (5 tokens × 4 rounds = 20)
+                      : game.gameVariant === "5B" ? 25  // 5B variant uses NYC25 (5 tokens × 5 rounds = 25)
                       : (game.gameVariant === "6A" || game.gameVariant === "6B") ? 30  // 6A/6B variants use NYC30 (6 tokens × 5 rounds = 30)
                       : playerCount === 3 ? 18
                       : playerCount === 4 ? 30  // 4-player uses NYC30 (6 tokens × 5 rounds = 30)
                       : playerCount === 5 ? 25  // 5-player uses NYC25 (5 tokens × 5 rounds = 25)
                       : 24; // 6-player standard
-      const includeClassicalStars = (playerCount >= 5 && game.gameVariant !== "5B") || game.gameVariant === "6B"; // 5+ player modes get Classical Stars (except 5B variant)
-      const noMoneyHub = game.gameVariant === "3B" || game.gameVariant === "4B" || game.gameVariant === "5B" || game.gameVariant === "6B"; // 3B/4B/5B/6B variants replace Money Hub with Household
+      const includeClassicalStars = (playerCount >= 5 && game.gameVariant !== "5A" && game.gameVariant !== "5B") || game.gameVariant === "6B"; // 5+ player modes get Classical Stars (except 5A/5B variants)
+      const noMoneyHub = game.gameVariant === "3B" || game.gameVariant === "4A" || game.gameVariant === "4B" || game.gameVariant === "5A" || game.gameVariant === "5B" || game.gameVariant === "6B"; // 3B/4A/4B/5A/5B/6B variants replace Money Hub with Household
       const secondMapLayout = generateMapLayoutWithEdgeCount(edgeCount, includeClassicalStars, noMoneyHub);
 
       // Get Multi-Map implications
@@ -278,8 +285,8 @@ export async function POST(
       const tokensPerRound = implications.tokensPerRound;
       const highlightedEdges = selectRandomVertices(secondMapLayout, [], tokensPerRound);
 
-      // Add cards to all players for second map (B variants only)
-      if (game.gameVariant && game.gameVariant.endsWith('B')) {
+      // Add cards to all players for second map (card-based variants)
+      if (game.gameVariant && (game.gameVariant.endsWith('B') || game.gameVariant === '4A' || game.gameVariant === '5A')) {
         for (const player of game.players) {
           if (player.cardInventory) {
             const currentInventory = deserializeInventory(player.cardInventory);
@@ -385,6 +392,7 @@ export async function POST(
 
       // Change action to nextRound and fall through to continue processing
       action = "nextRound";
+      fromCompleteTokenPlacement = true;
     }
 
     if (action === "nextRound") {
@@ -502,7 +510,7 @@ export async function POST(
 
               if (updatedGame.roundNumber === roundsPerMap) {
                 // First map completed - place NPC tokens on remaining highlighted edges (skip for 3A, 3B, 4B, 5B, 6A, 6B variants, 4-player, and 5-player)
-                if (updatedGame.gameVariant !== "3A" && updatedGame.gameVariant !== "3B" && updatedGame.gameVariant !== "4B" && updatedGame.gameVariant !== "5B" && updatedGame.gameVariant !== "6A" && updatedGame.gameVariant !== "6B" && playerCount !== 4 && playerCount !== 5) {
+                if (updatedGame.gameVariant !== "3A" && updatedGame.gameVariant !== "3B" && updatedGame.gameVariant !== "4B" && updatedGame.gameVariant !== "5A" && updatedGame.gameVariant !== "5B" && updatedGame.gameVariant !== "6A" && updatedGame.gameVariant !== "6B" && playerCount !== 4 && playerCount !== 5) {
                   const existingTokens = await prisma.influenceToken.findMany({
                     where: { gameId },
                     select: { edgeId: true },
@@ -595,7 +603,7 @@ export async function POST(
                 const realPlayersMap2Check = updatedGame.players.filter(p => p.name !== 'NPC');
                 const playerCountMap2Check = realPlayersMap2Check.length;
                 // Second map completed - place NPC tokens on remaining highlighted edges (skip for 3A, 3B, 4B, 5B, 6A, 6B variants, 4-player, and 5-player)
-                if (updatedGame.gameVariant !== "3A" && updatedGame.gameVariant !== "3B" && updatedGame.gameVariant !== "4B" && updatedGame.gameVariant !== "5B" && updatedGame.gameVariant !== "6A" && updatedGame.gameVariant !== "6B" && playerCountMap2Check !== 4 && playerCountMap2Check !== 5) {
+                if (updatedGame.gameVariant !== "3A" && updatedGame.gameVariant !== "3B" && updatedGame.gameVariant !== "4B" && updatedGame.gameVariant !== "5A" && updatedGame.gameVariant !== "5B" && updatedGame.gameVariant !== "6A" && updatedGame.gameVariant !== "6B" && playerCountMap2Check !== 4 && playerCountMap2Check !== 5) {
                   const existingTokens = await prisma.influenceToken.findMany({
                     where: {
                       gameId,
@@ -827,7 +835,7 @@ export async function POST(
 
             // MULTI-MAP MODE: For final rounds of each map, highlight extra edges for NPCs (skip for 3A, 3B, 4B, 5B, 6A, and 6B variants)
             // Song implications still show the same number of tokens (3 or 4)
-            if (updatedGame.isMultiMap && updatedGame.gameVariant !== "3A" && updatedGame.gameVariant !== "3B" && updatedGame.gameVariant !== "4B" && updatedGame.gameVariant !== "5B" && updatedGame.gameVariant !== "6A" && updatedGame.gameVariant !== "6B") {
+            if (updatedGame.isMultiMap && updatedGame.gameVariant !== "3A" && updatedGame.gameVariant !== "3B" && updatedGame.gameVariant !== "4B" && updatedGame.gameVariant !== "5A" && updatedGame.gameVariant !== "5B" && updatedGame.gameVariant !== "6A" && updatedGame.gameVariant !== "6B") {
               const realPlayers = updatedGame.players.filter(p => p.name !== 'NPC');
               const playerCount = realPlayers.length;
               const roundsPerMap = getRoundsPerMap(playerCount, updatedGame.gameVariant);
@@ -882,6 +890,19 @@ export async function POST(
 
       // Transition from TOKEN_PLACEMENT back to ROUND1 for next bidding round
       if (game.status === "TOKEN_PLACEMENT") {
+        // RACE CONDITION FIX: Only allow TOKEN_PLACEMENT → ROUND1 transition when coming from
+        // completeTokenPlacement (all tokens placed). Direct "nextRound" calls from the frontend
+        // should NOT advance past TOKEN_PLACEMENT. This prevents a bug where multiple players
+        // clicking "Advance to Placement" on the RESULTS screen causes the game to skip token
+        // placement entirely (first click: RESULTS→TOKEN_PLACEMENT, second click: TOKEN_PLACEMENT→ROUND1).
+        if (!fromCompleteTokenPlacement) {
+          console.log('⚠️ Blocked direct nextRound call during TOKEN_PLACEMENT (race condition prevention). Game:', gameId);
+          return NextResponse.json(
+            { error: "Token placement is in progress. Tokens must be placed before advancing." },
+            { status: 400 }
+          );
+        }
+
         // Check if map is complete (all vertices filled)
         const mapLayout = game.mapLayout ? deserializeMapLayout(game.mapLayout) : null;
         if (!mapLayout) {
@@ -1129,6 +1150,29 @@ export async function POST(
           });
         };
 
+        // Safety check: If we're in multi-map mode and about to exceed total rounds, force completion
+        if (game.isMultiMap && game.totalRounds && game.roundNumber >= game.totalRounds) {
+          console.error('🚨 CRITICAL: Attempting to advance past total rounds!', {
+            currentRound: game.roundNumber,
+            totalRounds: game.totalRounds,
+            currentMapNumber: game.currentMapNumber,
+          });
+
+          // Force transition to SECOND_MAP_COMPLETED if on second map
+          if (game.currentMapNumber === 2) {
+            console.log('🔧 FORCING SECOND_MAP_COMPLETED status');
+            await prisma.game.update({
+              where: { id: gameId },
+              data: { status: 'SECOND_MAP_COMPLETED' },
+            });
+            return NextResponse.json({
+              success: true,
+              secondMapCompleted: true,
+              forced: true,
+            });
+          }
+        }
+
         // Generate highlighted edges for the next round
         // MULTI-MAP MODE: Only get tokens from current map to avoid edge ID conflicts
         const nextRound = game.roundNumber + 1;
@@ -1152,7 +1196,7 @@ export async function POST(
 
         // MULTI-MAP MODE: For final rounds of each map, highlight extra edges for NPCs (skip for 3A, 3B, 4B, 5B, 6A, and 6B variants)
         // Song implications still show the same number of tokens (3 or 4)
-        if (game.isMultiMap && game.gameVariant !== "3A" && game.gameVariant !== "3B" && game.gameVariant !== "4B" && game.gameVariant !== "5B" && game.gameVariant !== "6A" && game.gameVariant !== "6B") {
+        if (game.isMultiMap && game.gameVariant !== "3A" && game.gameVariant !== "3B" && game.gameVariant !== "4B" && game.gameVariant !== "5A" && game.gameVariant !== "5B" && game.gameVariant !== "6A" && game.gameVariant !== "6B") {
           const realPlayers = game.players.filter(p => p.name !== 'NPC');
           const playerCount = realPlayers.length;
           const roundsPerMap = getRoundsPerMap(playerCount, game.gameVariant);

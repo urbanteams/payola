@@ -3,9 +3,10 @@ import { cookies } from "next/headers";
 const SESSION_COOKIE_NAME = "payola_session";
 
 export interface Session {
-  playerId: string;
+  playerId: string | null; // null for spectators
   playerName: string;
   gameId: string;
+  isSpectator?: boolean; // true for spectators
 }
 
 /**

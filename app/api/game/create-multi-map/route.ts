@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
 
     // Validate variant
     const gameVariant = variant || null;
-    if (gameVariant && !["3A", "3B", "4B", "5B", "6A", "6B"].includes(gameVariant)) {
+    if (gameVariant && !["3A", "3B", "4A", "4B", "5A", "5B", "6A", "6B"].includes(gameVariant)) {
       return NextResponse.json(
         { error: "Invalid game variant" },
         { status: 400 }
@@ -55,18 +55,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 4B variant is only valid for 4 players
-    if (gameVariant === "4B" && playerCount !== 4) {
+    // 4A and 4B variants are only valid for 4 players
+    if ((gameVariant === "4A" || gameVariant === "4B") && playerCount !== 4) {
       return NextResponse.json(
-        { error: "4B variant is only valid for 4-player games" },
+        { error: "4A and 4B variants are only valid for 4-player games" },
         { status: 400 }
       );
     }
 
-    // 5B variant is only valid for 5 players
-    if (gameVariant === "5B" && playerCount !== 5) {
+    // 5A and 5B variants are only valid for 5 players
+    if ((gameVariant === "5A" || gameVariant === "5B") && playerCount !== 5) {
       return NextResponse.json(
-        { error: "5B variant is only valid for 5-player games" },
+        { error: "5A and 5B variants are only valid for 5-player games" },
         { status: 400 }
       );
     }
@@ -89,17 +89,18 @@ export async function POST(request: NextRequest) {
       existingGame = await prisma.game.findUnique({ where: { roomCode } });
     }
 
-    // Generate FIRST map with NYC15 (for 3A/3B), NYC18 (3 players), NYC20 (4B/5B), NYC30 (4 players or 6A/6B), NYC25 (5 players), or NYC24 (6 players)
+    // Generate FIRST map with NYC15 (for 3A/3B), NYC18 (3 players), NYC20 (4A/4B/5A), NYC25 (5B), NYC30 (4 players or 6A/6B), or NYC24 (6 players)
     const edgeCount = (gameVariant === "3A" || gameVariant === "3B") ? 15  // 3A/3B variants use NYC15
-                    : gameVariant === "4B" ? 20  // 4B variant uses NYC20 (4 tokens × 5 rounds = 20)
-                    : gameVariant === "5B" ? 20  // 5B variant uses NYC20 (5 tokens × 4 rounds = 20)
+                    : (gameVariant === "4A" || gameVariant === "4B") ? 20  // 4A/4B variants use NYC20 (4 tokens × 5 rounds = 20)
+                    : gameVariant === "5A" ? 20  // 5A variant uses NYC20 (5 tokens × 4 rounds = 20)
+                    : gameVariant === "5B" ? 25  // 5B variant uses NYC25 (5 tokens × 5 rounds = 25)
                     : (gameVariant === "6A" || gameVariant === "6B") ? 30  // 6A/6B variants use NYC30 (6 tokens × 5 rounds = 30)
                     : playerCount === 3 ? 18
                     : playerCount === 4 ? 30  // 4-player uses NYC30 (6 tokens × 5 rounds = 30)
                     : playerCount === 5 ? 25  // 5-player uses NYC25 (5 tokens × 5 rounds = 25)
                     : 24; // 6-player standard
-    const includeClassicalStars = (playerCount >= 5 && gameVariant !== "5B") || gameVariant === "6B"; // 5+ player modes get Classical Stars (except 5B variant)
-    const noMoneyHub = gameVariant === "3B" || gameVariant === "4B" || gameVariant === "5B" || gameVariant === "6B"; // 3B/4B/5B/6B variants replace Money Hub with Household
+    const includeClassicalStars = (playerCount >= 5 && gameVariant !== "5A" && gameVariant !== "5B") || gameVariant === "6B"; // 5+ player modes get Classical Stars (except 5A/5B variants)
+    const noMoneyHub = gameVariant === "3B" || gameVariant === "4A" || gameVariant === "4B" || gameVariant === "5A" || gameVariant === "5B" || gameVariant === "6B"; // 3B/4A/4B/5A/5B/6B variants replace Money Hub with Household
     const firstMapLayout = generateMapLayoutWithEdgeCount(edgeCount, includeClassicalStars, noMoneyHub);
     const totalRounds = getTotalRounds(playerCount, false, true, gameVariant); // useMultiMap = true, pass gameVariant
 
@@ -135,7 +136,7 @@ export async function POST(request: NextRequest) {
         name: playerName.trim(),
         sessionToken,
         currencyBalance: 20, // Multi-Map mode starts with $20
-        cardInventory: (gameVariant === "3B" || gameVariant === "4B" || gameVariant === "5B" || gameVariant === "6B") ? serializeInventory(createInitialInventory()) : null,
+        cardInventory: (gameVariant === "3B" || gameVariant === "4A" || gameVariant === "4B" || gameVariant === "5A" || gameVariant === "5B" || gameVariant === "6B") ? serializeInventory(createInitialInventory()) : null,
         isAI: false,
         playerColor: PLAYER_COLORS[0], // First player gets first color
       },
@@ -152,7 +153,7 @@ export async function POST(request: NextRequest) {
           name: aiNames[i],
           sessionToken: generateSessionToken(), // AI still needs a token but won't use it
           currencyBalance: 20, // Multi-Map mode starts with $20
-          cardInventory: (gameVariant === "3B" || gameVariant === "4B" || gameVariant === "5B" || gameVariant === "6B") ? serializeInventory(createInitialInventory()) : null,
+          cardInventory: (gameVariant === "3B" || gameVariant === "4A" || gameVariant === "4B" || gameVariant === "5A" || gameVariant === "5B" || gameVariant === "6B") ? serializeInventory(createInitialInventory()) : null,
           isAI: true,
           playerColor: PLAYER_COLORS[i + 1], // AI players get subsequent colors
         },

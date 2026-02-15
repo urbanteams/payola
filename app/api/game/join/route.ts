@@ -44,12 +44,35 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if game is still in lobby
+    // If game is in progress or finished (not LOBBY), join as spectator
     if (game.status !== "LOBBY") {
-      return NextResponse.json(
-        { error: "Game has already started" },
-        { status: 400 }
-      );
+      // For FINISHED games, only allow spectators if game ended recently (within 1 hour)
+      if (game.status === "FINISHED") {
+        const ONE_HOUR_MS = 60 * 60 * 1000;
+        const gameEndTime = new Date(game.updatedAt).getTime();
+        const now = Date.now();
+
+        if (now - gameEndTime > ONE_HOUR_MS) {
+          return NextResponse.json(
+            { error: "This game ended more than 1 hour ago and is no longer available for viewing" },
+            { status: 400 }
+          );
+        }
+      }
+
+      // Create spectator session (no player record)
+      await createSession({
+        playerId: null,
+        playerName: playerName.trim() + " (Spectator)",
+        gameId: game.id,
+        isSpectator: true,
+      });
+
+      return NextResponse.json({
+        gameId: game.id,
+        roomCode: game.roomCode,
+        isSpectator: true,
+      });
     }
 
     // Assign player color based on join order

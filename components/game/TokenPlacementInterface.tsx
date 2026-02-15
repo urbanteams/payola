@@ -211,11 +211,11 @@ export function TokenPlacementInterface({
     <div className="space-y-6">
       {/* Turn Indicator */}
       <div className="bg-gray-800 p-4 rounded-lg">
-        <h3 className="text-xl font-semibold mb-2">Token Placement Phase</h3>
+        <h3 className="text-xl font-semibold mb-2 text-white">Token Placement Phase</h3>
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm text-gray-400">Current Turn:</p>
-            <p className="text-lg font-bold">
+            <p className="text-lg font-bold text-white">
               {currentTurn.playerName}
               {isMyTurn && <span className="ml-2 text-green-400">← Your Turn!</span>}
             </p>
@@ -231,7 +231,7 @@ export function TokenPlacementInterface({
       {/* Token Type Selector */}
       {isMyTurn && (
         <div className="bg-gray-800 p-4 rounded-lg">
-          <h4 className="text-lg font-semibold mb-3">Select Token Type</h4>
+          <h4 className="text-lg font-semibold mb-3 text-white">Select Token Type</h4>
           <div className="flex gap-3">
             <button
               onClick={() => setSelectedTokenType('4/0')}
@@ -349,7 +349,7 @@ export function TokenPlacementInterface({
       {show22Confirmation && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
           <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full">
-            <h3 className="text-2xl font-bold mb-4">Confirm Placement</h3>
+            <h3 className="text-2xl font-bold mb-4 text-white">Confirm Placement</h3>
             <p className="text-gray-300 mb-6">
               Are you sure you want to place a 2/2 token at this location?
             </p>
@@ -357,14 +357,14 @@ export function TokenPlacementInterface({
               <button
                 onClick={handleCancel22Placement}
                 disabled={isPlacing}
-                className="flex-1 px-6 py-3 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-900 disabled:cursor-not-allowed rounded-lg font-semibold transition-colors"
+                className="flex-1 px-6 py-3 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-900 disabled:cursor-not-allowed rounded-lg font-semibold transition-colors text-white"
               >
                 Cancel
               </button>
               <button
                 onClick={handleConfirm22Placement}
                 disabled={isPlacing}
-                className="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-900 disabled:cursor-not-allowed rounded-lg font-semibold transition-colors"
+                className="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-900 disabled:cursor-not-allowed rounded-lg font-semibold transition-colors text-white"
               >
                 {isPlacing ? 'Placing...' : 'Confirm'}
               </button>

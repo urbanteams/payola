@@ -24,9 +24,10 @@ import { calculateSymbolsCollected, calculatePowerHubScores, calculateMoneyPoint
 import { HexIcon } from "./HexIcon";
 import { deserializeInventory, CardInventory, calculateTotalValue } from "@/lib/game/card-inventory";
 import { PlayerAid } from "./PlayerAid";
+import { PlacementOrderDisplay } from "./PlacementOrderDisplay";
 
 export function GameBoard() {
-  const { gameState, loading, error, submitBid, advanceGame } = useGame();
+  const { gameState, loading, error, submitBid, advanceGame, isSpectator } = useGame();
 
   // Debug: Log game state to browser console
   React.useEffect(() => {
@@ -51,6 +52,7 @@ export function GameBoard() {
   const [showRoundTransition, setShowRoundTransition] = useState(false);
   const [previousRound, setPreviousRound] = useState(1);
   const [currentView, setCurrentView] = useState<'game' | 'map' | 'firstMap'>('game');
+  const [showSongImplications, setShowSongImplications] = useState(false);
 
   // Show initial map view when game starts
   useEffect(() => {
@@ -229,8 +231,17 @@ export function GameBoard() {
   const myPlayer = players.find(p => p.isMe);
   const currencyBalance = myPlayer?.currencyBalance || 0;
 
-  // Check if card-based variant (3B, 4B, 5B, 6B)
-  const isCardVariant = game.gameVariant === "3B" || game.gameVariant === "4B" || game.gameVariant === "5B" || game.gameVariant === "6B";
+  // Check if game has any AI players (for hiding promise totals)
+  const hasAIPlayers = allPlayers.some(p => p.isAI);
+
+  // Check if all players have submitted Round 1 bids
+  const allPlayersSubmittedRound1 = promisePhaseBids && promisePhaseBids.length >= players.length;
+
+  // Hide other players' promises in human-only games until all submitted
+  const hideOtherPromises = !hasAIPlayers && !allPlayersSubmittedRound1;
+
+  // Check if card-based variant (3B, 4A, 4B, 5B, 6B)
+  const isCardVariant = game.gameVariant === "3B" || game.gameVariant === "4A" || game.gameVariant === "4B" || game.gameVariant === "5A" || game.gameVariant === "5B" || game.gameVariant === "6B";
   const is3BVariant = isCardVariant; // For backward compatibility with prop names
 
   // Parse card inventory for card variants
@@ -245,8 +256,8 @@ export function GameBoard() {
 
   // Helper function to calculate rounds per map for Multi-Map mode
   const getRoundsPerMap = (playerCount: number, gameVariant?: string | null): number => {
-    // 5B variant uses 4 rounds per map (5 tokens × 4 rounds = 20 edges on NYC20)
-    if (gameVariant === "5B") return 4;
+    // 5A variant uses 4 rounds per map (5 tokens × 4 rounds = 20 edges on NYC20)
+    if (gameVariant === "5A") return 4;
     if (playerCount === 3) return 5;
     if (playerCount === 4) return 5;
     if (playerCount === 5) return 5;
@@ -327,6 +338,18 @@ export function GameBoard() {
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-gray-800 mb-2">Payola</h1>
           <p className="text-gray-600">Room Code: <span className="font-mono font-bold">{game.roomCode}</span></p>
+
+          {/* Spectator Banner */}
+          {isSpectator && (
+            <div className="mt-4 bg-blue-100 border-2 border-blue-400 rounded-lg p-3 max-w-2xl mx-auto">
+              <div className="flex items-center justify-center gap-2">
+                <span className="text-2xl">👁️</span>
+                <p className="text-blue-900 font-semibold">
+                  Spectator Mode - You are viewing this game (view only)
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Tab View Switcher - Show during bidding, results, and finished states */}
@@ -487,6 +510,102 @@ export function GameBoard() {
                           )
                         )}
                       </p>
+
+                      {/* Show song implications during bribe phase for players who promised money */}
+                      {currentBid.round === 1 && currentBid.amount > 0 && (() => {
+                        // Check if all promise phase bids are in (bribe phase has started)
+                        const allPlayerIds = players.filter(p => !p.isMe).map(p => p.id);
+                        const round1BidPlayerIds = (promisePhaseBids || []).map(b => b.playerId);
+                        const allPromisesIn = allPlayerIds.every(id => round1BidPlayerIds.includes(id));
+
+                        // Only show implications during bribe phase
+                        if (!allPromisesIn) return null;
+
+                        // Determine available songs
+                        const availableSongs: Array<{ id: "A" | "B" | "C" | "D"; name: string; color: string; bgColor: string; borderColor: string; textColor: string }> = [];
+                        const allSongs = [
+                          { id: "A" as const, name: "Song A", color: "blue", bgColor: "bg-blue-50", borderColor: "border-blue-400", textColor: "text-blue-600" },
+                          { id: "B" as const, name: "Song B", color: "green", bgColor: "bg-green-50", borderColor: "border-green-400", textColor: "text-green-600" },
+                          { id: "C" as const, name: "Song C", color: "purple", bgColor: "bg-purple-50", borderColor: "border-purple-400", textColor: "text-red-600" },
+                          { id: "D" as const, name: "Song D", color: "orange", bgColor: "bg-orange-50", borderColor: "border-orange-400", textColor: "text-orange-600" },
+                        ];
+
+                        if (game.turnOrderA) availableSongs.push(allSongs[0]);
+                        if (game.turnOrderB) availableSongs.push(allSongs[1]);
+                        if (game.turnOrderC) availableSongs.push(allSongs[2]);
+                        if (game.turnOrderD) availableSongs.push(allSongs[3]);
+
+                        const getTurnOrder = (songId: "A" | "B" | "C" | "D"): string[] | null => {
+                          try {
+                            let turnOrderData: string | string[] | null = null;
+                            if (songId === "A") turnOrderData = game.turnOrderA;
+                            if (songId === "B") turnOrderData = game.turnOrderB;
+                            if (songId === "C") turnOrderData = game.turnOrderC;
+                            if (songId === "D") turnOrderData = game.turnOrderD;
+
+                            if (!turnOrderData) return null;
+
+                            // Handle both string and array formats
+                            if (typeof turnOrderData === 'string') {
+                              return JSON.parse(turnOrderData);
+                            }
+                            return turnOrderData as string[];
+                          } catch (error) {
+                            console.error(`Failed to parse turn order for song ${songId}:`, error);
+                            return null;
+                          }
+                        };
+
+                        return (
+                          <div className="mt-6 bg-gradient-to-br from-purple-50 to-blue-50 border-2 border-purple-200 rounded-lg p-4">
+                            <button
+                              onClick={() => setShowSongImplications(!showSongImplications)}
+                              className="w-full flex items-center justify-between text-left hover:opacity-80 transition-opacity"
+                            >
+                              <div>
+                                <h3 className="text-lg font-bold text-gray-800">Song Implications</h3>
+                                <p className="text-xs text-gray-600">Token placement order if each song wins</p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-semibold text-purple-700">
+                                  {showSongImplications ? 'Collapse' : 'Expand'}
+                                </span>
+                                <svg
+                                  className={`w-6 h-6 text-purple-700 transition-transform ${showSongImplications ? 'rotate-180' : ''}`}
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                              </div>
+                            </button>
+
+                            {showSongImplications && (
+                              <div className="mt-4 space-y-3">
+                                {availableSongs.map((song) => {
+                                  const turnOrder = getTurnOrder(song.id);
+                                  const hasTurnOrder = turnOrder && turnOrder.length > 0;
+
+                                  return (
+                                    <div key={song.id} className="bg-white border-2 border-gray-200 rounded-lg p-3">
+                                      <div className="flex items-center gap-3 mb-2">
+                                        <div className={`${song.bgColor} border-2 ${song.borderColor} rounded px-3 py-1`}>
+                                          <span className={`text-lg font-bold ${song.textColor}`}>{song.id}</span>
+                                        </div>
+                                        <span className="text-sm font-semibold text-gray-700">{song.name}</span>
+                                      </div>
+                                      {hasTurnOrder && (
+                                        <PlacementOrderDisplay turnOrder={turnOrder} players={players} />
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </CardContent>
                   </Card>
                 </div>
@@ -526,6 +645,94 @@ export function GameBoard() {
                           </p>
                         </div>
                       )}
+
+                      {/* Show song implications during bribe phase */}
+                      {(() => {
+                        // Determine available songs
+                        const availableSongs: Array<{ id: "A" | "B" | "C" | "D"; name: string; color: string; bgColor: string; borderColor: string; textColor: string }> = [];
+                        const allSongs = [
+                          { id: "A" as const, name: "Song A", color: "blue", bgColor: "bg-blue-50", borderColor: "border-blue-400", textColor: "text-blue-600" },
+                          { id: "B" as const, name: "Song B", color: "green", bgColor: "bg-green-50", borderColor: "border-green-400", textColor: "text-green-600" },
+                          { id: "C" as const, name: "Song C", color: "purple", bgColor: "bg-purple-50", borderColor: "border-purple-400", textColor: "text-red-600" },
+                          { id: "D" as const, name: "Song D", color: "orange", bgColor: "bg-orange-50", borderColor: "border-orange-400", textColor: "text-orange-600" },
+                        ];
+
+                        if (game.turnOrderA) availableSongs.push(allSongs[0]);
+                        if (game.turnOrderB) availableSongs.push(allSongs[1]);
+                        if (game.turnOrderC) availableSongs.push(allSongs[2]);
+                        if (game.turnOrderD) availableSongs.push(allSongs[3]);
+
+                        const getTurnOrder = (songId: "A" | "B" | "C" | "D"): string[] | null => {
+                          try {
+                            let turnOrderData: string | string[] | null = null;
+                            if (songId === "A") turnOrderData = game.turnOrderA;
+                            if (songId === "B") turnOrderData = game.turnOrderB;
+                            if (songId === "C") turnOrderData = game.turnOrderC;
+                            if (songId === "D") turnOrderData = game.turnOrderD;
+
+                            if (!turnOrderData) return null;
+
+                            // Handle both string and array formats
+                            if (typeof turnOrderData === 'string') {
+                              return JSON.parse(turnOrderData);
+                            }
+                            return turnOrderData as string[];
+                          } catch (error) {
+                            console.error(`Failed to parse turn order for song ${songId}:`, error);
+                            return null;
+                          }
+                        };
+
+                        return (
+                          <div className="mt-6 bg-gradient-to-br from-purple-50 to-blue-50 border-2 border-purple-200 rounded-lg p-4">
+                            <button
+                              onClick={() => setShowSongImplications(!showSongImplications)}
+                              className="w-full flex items-center justify-between text-left hover:opacity-80 transition-opacity"
+                            >
+                              <div>
+                                <h3 className="text-lg font-bold text-gray-800">Song Implications</h3>
+                                <p className="text-xs text-gray-600">Token placement order if each song wins</p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-semibold text-purple-700">
+                                  {showSongImplications ? 'Collapse' : 'Expand'}
+                                </span>
+                                <svg
+                                  className={`w-6 h-6 text-purple-700 transition-transform ${showSongImplications ? 'rotate-180' : ''}`}
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                              </div>
+                            </button>
+
+                            {showSongImplications && (
+                              <div className="mt-4 space-y-3">
+                                {availableSongs.map((song) => {
+                                  const turnOrder = getTurnOrder(song.id);
+                                  const hasTurnOrder = turnOrder && turnOrder.length > 0;
+
+                                  return (
+                                    <div key={song.id} className="bg-white border-2 border-gray-200 rounded-lg p-3">
+                                      <div className="flex items-center gap-3 mb-2">
+                                        <div className={`${song.bgColor} border-2 ${song.borderColor} rounded px-3 py-1`}>
+                                          <span className={`text-lg font-bold ${song.textColor}`}>{song.id}</span>
+                                        </div>
+                                        <span className="text-sm font-semibold text-gray-700">{song.name}</span>
+                                      </div>
+                                      {hasTurnOrder && (
+                                        <PlacementOrderDisplay turnOrder={turnOrder} players={players} />
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </CardContent>
                   </Card>
                 </div>
@@ -541,7 +748,7 @@ export function GameBoard() {
           {/* Center Column - Main Content */}
           <div className="lg:col-span-2">
             {/* ROUND1 or ROUND2 - Bidding */}
-            {(game.status === "ROUND1" || game.status === "ROUND2") && (
+            {(game.status === "ROUND1" || game.status === "ROUND2") && !isSpectator && (
               <>
                 {currentBid ? (
                   <div className="space-y-6">
@@ -557,6 +764,8 @@ export function GameBoard() {
                           if (game.turnOrderD) songs.push("D");
                           return songs;
                         })()}
+                        hideOtherPromises={hideOtherPromises}
+                        currentPlayerId={myPlayer?.id}
                       />
                     )}
                   </div>
@@ -573,6 +782,8 @@ export function GameBoard() {
                           if (game.turnOrderD) songs.push("D");
                           return songs;
                         })()}
+                        hideOtherPromises={hideOtherPromises}
+                        currentPlayerId={myPlayer?.id}
                       />
                     )}
                     <BiddingPanel
@@ -605,6 +816,8 @@ export function GameBoard() {
                           if (game.turnOrderD) songs.push("D");
                           return songs;
                         })()}
+                        hideOtherPromises={hideOtherPromises}
+                        currentPlayerId={myPlayer?.id}
                       />
                     )}
                   </div>
@@ -627,6 +840,35 @@ export function GameBoard() {
                   />
                 )}
               </>
+            )}
+
+            {/* ROUND1 or ROUND2 - Spectator View */}
+            {(game.status === "ROUND1" || game.status === "ROUND2") && isSpectator && (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <div className="text-6xl mb-4">⏳</div>
+                  <h2 className="text-2xl font-bold text-gray-800 mb-2">Bidding in Progress</h2>
+                  <p className="text-gray-600">
+                    Players are currently placing their bids...
+                  </p>
+                  {promisePhaseBids && promisePhaseBids.length > 0 && (
+                    <div className="mt-6">
+                      <PromisePhaseSummary
+                        bids={promisePhaseBids}
+                        availableSongs={(() => {
+                          const songs: Array<"A" | "B" | "C" | "D"> = [];
+                          if (game.turnOrderA) songs.push("A");
+                          if (game.turnOrderB) songs.push("B");
+                          if (game.turnOrderC) songs.push("C");
+                          if (game.turnOrderD) songs.push("D");
+                          return songs;
+                        })()}
+                        hideOtherPromises={false}
+                      />
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             )}
 
             {/* RESULTS - Show wheel for tie, then results */}
@@ -665,6 +907,7 @@ export function GameBoard() {
                     currentRound={game.roundNumber}
                     totalRounds={game.totalRounds ?? undefined}
                     gameVariant={game.gameVariant}
+                    isSpectator={isSpectator}
                   />
                 )}
               </>
@@ -715,6 +958,7 @@ export function GameBoard() {
                 tokens={gameState.tokens || []}
                 onAdvanceToSecondMap={handleAdvanceToSecondMap}
                 isAdvancing={isAdvancing}
+                isSpectator={isSpectator}
               />
             )}
 
@@ -727,6 +971,7 @@ export function GameBoard() {
                 tokens={gameState.tokens || []}
                 onAdvanceToFinalResults={handleAdvanceToFinalResults}
                 isAdvancing={isAdvancing}
+                isSpectator={isSpectator}
               />
             )}
 

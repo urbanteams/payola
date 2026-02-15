@@ -34,6 +34,7 @@ interface GameState {
     victoryPoints: number;
     playerColor: string | null;
     cardInventory: string | null;
+    isAI: boolean;
     isMe: boolean;
   }>;
   tokens: Array<{
@@ -77,6 +78,7 @@ interface GameState {
     amount: number;
     round: number;
   }> | null;
+  isSpectator?: boolean;
 }
 
 interface GameContextType {
@@ -86,6 +88,7 @@ interface GameContextType {
   submitBid: (song: string, amount: number, cards?: number[]) => Promise<void>;
   advanceGame: (action: "start" | "nextRound" | "finish" | "startSecondMap" | "completeTokenPlacement" | "startTokenPlacement" | "viewFinalResults", gameVariant?: string) => Promise<void>;
   refetch: () => Promise<void>;
+  isSpectator: boolean;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -101,6 +104,7 @@ export function GameProvider({ gameId, children }: Omit<GameProviderProps, 'poll
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isPolling, setIsPolling] = useState(true);
+  const [isSpectator, setIsSpectator] = useState(false);
 
   // Dynamic polling interval based on game state
   const dynamicInterval = React.useMemo(() => {
@@ -134,8 +138,13 @@ export function GameProvider({ gameId, children }: Omit<GameProviderProps, 'poll
       setGameState(data);
       setError(null);
 
-      // Stop polling if game is finished
-      if (data.game.status === "FINISHED") {
+      // Set spectator mode
+      if (data.isSpectator) {
+        setIsSpectator(true);
+      }
+
+      // Stop polling if game is finished and not spectator
+      if (data.game.status === "FINISHED" && !data.isSpectator) {
         setIsPolling(false);
       }
     } catch (err) {
@@ -270,6 +279,40 @@ export function GameProvider({ gameId, children }: Omit<GameProviderProps, 'poll
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [fetchGameState, loading]);
 
+  // SSE connection for spectators
+  useEffect(() => {
+    if (!isSpectator || !gameState) return;
+
+    console.log('[Spectator] Connecting to SSE...');
+    const eventSource = new EventSource(`/api/game/${gameId}/events`);
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+
+        if (data.type === 'connected') {
+          console.log('[Spectator] SSE connected');
+        } else if (data.type === 'update') {
+          console.log('[Spectator] Game state updated, refetching...', data);
+          // Refetch game state when update is received
+          fetchGameState();
+        }
+      } catch (error) {
+        console.error('[Spectator] Error parsing SSE message:', error);
+      }
+    };
+
+    eventSource.onerror = (error) => {
+      console.error('[Spectator] SSE error:', error);
+      eventSource.close();
+    };
+
+    return () => {
+      console.log('[Spectator] Closing SSE connection');
+      eventSource.close();
+    };
+  }, [isSpectator, gameId, gameState, fetchGameState]);
+
   const value: GameContextType = {
     gameState,
     loading,
@@ -277,6 +320,7 @@ export function GameProvider({ gameId, children }: Omit<GameProviderProps, 'poll
     submitBid,
     advanceGame,
     refetch: fetchGameState,
+    isSpectator,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

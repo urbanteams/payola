@@ -92,8 +92,8 @@ function generateAIBid(
     // Select cards to match target amount
     // Determine max cards based on variant and round
     let maxCards: number;
-    if (gameVariant === "5B") {
-      // 5B variant: R1-4 = 1 card, R5+ = 2 cards
+    if (gameVariant === "5A") {
+      // 5A variant: R1-4 = 1 card, R5+ = 2 cards
       maxCards = currentRound <= 4 ? 1 : 2;
     } else {
       // Default (3B, 4B, 6B): R1-5 = 1 card, R6+ = 2 cards
@@ -308,7 +308,7 @@ export async function processAIBids(gameId: string): Promise<void> {
     const turnOrderC = game.turnOrderC ? JSON.parse(game.turnOrderC) : null;
     const turnOrderD = game.turnOrderD ? JSON.parse(game.turnOrderD) : null;
 
-    const is3BVariant = game.gameVariant === "3B" || game.gameVariant === "4B" || game.gameVariant === "5B" || game.gameVariant === "6B";
+    const is3BVariant = game.gameVariant === "3B" || game.gameVariant === "4A" || game.gameVariant === "4B" || game.gameVariant === "5A" || game.gameVariant === "5B" || game.gameVariant === "6B";
 
     for (const aiPlayer of aiPlayers) {
       // Check if AI player needs to bid in current round
