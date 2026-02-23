@@ -58,142 +58,226 @@ function hexId(coord: HexCoordinate): string {
 }
 
 /**
- * NYC20 Fallback Map (4B variant Multi-Map)
- * Used if random generation fails for 20 edge maps
- * Compact layout: 11 hexagons creating exactly 20 edges
+ * NYC15 Fallback Map (3A/3B variant Multi-Map)
+ * Compact layout: 9 hexagons creating exactly 15 edges (verified)
  */
-const NYC20_POSITIONS: HexCoordinate[] = [
-  // Row r=0 (2 hexes) - top
-  { q: 2, r: 0 },
-  { q: 3, r: 0 },
+const NYC15_POSITIONS: HexCoordinate[] = [
+  // Row r=0 (2 hexes)
+  { q: 0, r: 0 },
+  { q: 1, r: 0 },
 
-  // Row r=1 (3 hexes)
+  // Row r=1 (2 hexes)
+  { q: 0, r: 1 },
   { q: 1, r: 1 },
-  { q: 2, r: 1 },
-  { q: 3, r: 1 },
 
-  // Row r=2 (4 hexes) - widest
+  // Row r=2 (2 hexes)
   { q: 0, r: 2 },
   { q: 1, r: 2 },
-  { q: 2, r: 2 },
-  { q: 3, r: 2 },
 
-  // Row r=3 (2 hexes) - bottom
+  // Row r=3 (2 hexes)
+  { q: 0, r: 3 },
   { q: 1, r: 3 },
-  { q: 2, r: 3 },
-]; // 11 hexes total = exactly 20 edges
+
+  // Row r=4 (1 hex)
+  { q: 0, r: 4 },
+]; // 9 hexes = exactly 15 edges (verified)
 
 /**
- * NYC25 Fallback Map (5 players Multi-Map)
- * Used if random generation fails for 24-25 edge maps
- * Offset rows layout: 13 hexagons creating exactly 25 edges
+ * NYC18 Fallback Map (3-player no-variant Multi-Map)
+ * Compact layout: 10 hexagons creating exactly 18 edges (verified)
  */
-const NYC25_POSITIONS: HexCoordinate[] = [
-  // Row r=0 (2 hexes) - top
+const NYC18_POSITIONS: HexCoordinate[] = [
+  // Row r=0 (2 hexes)
+  { q: 1, r: 0 },
   { q: 2, r: 0 },
-  { q: 3, r: 0 },
 
   // Row r=1 (3 hexes)
+  { q: 0, r: 1 },
   { q: 1, r: 1 },
   { q: 2, r: 1 },
-  { q: 3, r: 1 },
 
-  // Row r=2 (4 hexes) - widest section
+  // Row r=2 (3 hexes)
   { q: 0, r: 2 },
   { q: 1, r: 2 },
   { q: 2, r: 2 },
-  { q: 3, r: 2 },
 
   // Row r=3 (2 hexes)
   { q: 1, r: 3 },
   { q: 2, r: 3 },
-
-  // Row r=4 (2 hexes) - bottom
-  { q: 1, r: 4 },
-  { q: 2, r: 4 },
-]; // 13 hexes total = exactly 25 edges
+]; // 10 hexes = exactly 18 edges (verified)
 
 /**
- * NYC36 Fallback Map (3-4 players)
- * Used if random generation fails
- * 20 hexagons creating 36 edges
+ * NYC20 Fallback Map (4A/4B/5A variant Multi-Map)
+ * Compact layout: 11 hexagons creating exactly 20 edges (verified)
  */
-const NYC36_POSITIONS: HexCoordinate[] = [
-  // Row r=0 (2 hexes) - top
-  { q: 4, r: 0 },
-  { q: 5, r: 0 },
+const NYC20_POSITIONS: HexCoordinate[] = [
+  // Row r=0 (3 hexes)
+  { q: 0, r: 0 },
+  { q: 1, r: 0 },
+  { q: 2, r: 0 },
 
-  // Row r=1 (3 hexes)
+  // Row r=1 (4 hexes)
+  { q: 0, r: 1 },
+  { q: 1, r: 1 },
+  { q: 2, r: 1 },
+  { q: 3, r: 1 },
+
+  // Row r=2 (4 hexes)
+  { q: 0, r: 2 },
+  { q: 1, r: 2 },
+  { q: 2, r: 2 },
+  { q: 3, r: 2 },
+]; // 11 hexes = exactly 20 edges (verified)
+
+/**
+ * NYC24 Fallback Map (6-player no-variant Multi-Map)
+ * Compact layout: 13 hexagons creating exactly 24 edges (verified)
+ */
+const NYC24_POSITIONS: HexCoordinate[] = [
+  // Row r=0 (4 hexes)
+  { q: 1, r: 0 },
+  { q: 2, r: 0 },
+  { q: 3, r: 0 },
+  { q: 4, r: 0 },
+
+  // Row r=1 (5 hexes)
+  { q: 0, r: 1 },
+  { q: 1, r: 1 },
+  { q: 2, r: 1 },
   { q: 3, r: 1 },
   { q: 4, r: 1 },
-  { q: 5, r: 1 },
 
-  // Row r=2 (5 hexes) - left wing + right section with gap
+  // Row r=2 (4 hexes)
   { q: 0, r: 2 },
   { q: 1, r: 2 },
   { q: 3, r: 2 },
   { q: 4, r: 2 },
-  { q: 5, r: 2 },
-
-  // Row r=3 (7 hexes) - widest section
-  { q: 0, r: 3 },
-  { q: 1, r: 3 },
-  { q: 2, r: 3 },
-  { q: 3, r: 3 },
-  { q: 4, r: 3 },
-  { q: 5, r: 3 },
-  { q: 6, r: 3 },
-
-  // Row r=4 (2 hexes) - bottom, scattered
-  { q: 1, r: 4 },
-  { q: 6, r: 4 },
-
-  // Row r=5 (1 hex) - bottom right tip
-  { q: 6, r: 5 },
-]; // 20 hexes total = 36 edges
+]; // 13 hexes = exactly 24 edges (verified)
 
 /**
- * NYC48 Fallback Map (5-6 players)
- * Used if random generation fails
- * 24 hexagons creating 48 edges
+ * NYC25 Fallback Map (5B/5-player Multi-Map)
+ * Compact layout: 13 hexagons creating exactly 25 edges (verified)
  */
-const NYC48_POSITIONS: HexCoordinate[] = [
-  // Row r=0 (3 hexes) - expanded top
+const NYC25_POSITIONS: HexCoordinate[] = [
+  // Row r=0 (4 hexes)
+  { q: 0, r: 0 },
+  { q: 1, r: 0 },
+  { q: 2, r: 0 },
   { q: 3, r: 0 },
-  { q: 4, r: 0 },
-  { q: 5, r: 0 },
 
-  // Row r=1 (4 hexes)
+  // Row r=1 (5 hexes)
+  { q: 0, r: 1 },
+  { q: 1, r: 1 },
   { q: 2, r: 1 },
   { q: 3, r: 1 },
   { q: 4, r: 1 },
-  { q: 5, r: 1 },
 
-  // Row r=2 (6 hexes) - left wing + right section with gap
+  // Row r=2 (4 hexes)
+  { q: 0, r: 2 },
+  { q: 1, r: 2 },
+  { q: 2, r: 2 },
+  { q: 3, r: 2 },
+]; // 13 hexes = exactly 25 edges (verified)
+
+/**
+ * NYC30 Fallback Map (6A/6B/4-player no-variant Multi-Map)
+ * Compact layout: 15 hexagons creating exactly 30 edges (verified)
+ */
+const NYC30_POSITIONS: HexCoordinate[] = [
+  // Row r=0 (5 hexes)
+  { q: 0, r: 0 },
+  { q: 1, r: 0 },
+  { q: 2, r: 0 },
+  { q: 3, r: 0 },
+  { q: 4, r: 0 },
+
+  // Row r=1 (5 hexes)
+  { q: 0, r: 1 },
+  { q: 1, r: 1 },
+  { q: 2, r: 1 },
+  { q: 3, r: 1 },
+  { q: 4, r: 1 },
+
+  // Row r=2 (5 hexes)
   { q: 0, r: 2 },
   { q: 1, r: 2 },
   { q: 2, r: 2 },
   { q: 3, r: 2 },
   { q: 4, r: 2 },
-  { q: 5, r: 2 },
+]; // 15 hexes = exactly 30 edges (verified)
 
-  // Row r=3 (8 hexes) - widest section
+/**
+ * NYC36 Fallback Map (3-4 player standard)
+ * Compact layout: 17 hexagons creating exactly 36 edges (verified)
+ */
+const NYC36_POSITIONS: HexCoordinate[] = [
+  // Row r=0 (3 hexes)
+  { q: 1, r: 0 },
+  { q: 2, r: 0 },
+  { q: 3, r: 0 },
+
+  // Row r=1 (4 hexes)
+  { q: 0, r: 1 },
+  { q: 1, r: 1 },
+  { q: 2, r: 1 },
+  { q: 3, r: 1 },
+
+  // Row r=2 (4 hexes)
+  { q: 0, r: 2 },
+  { q: 1, r: 2 },
+  { q: 2, r: 2 },
+  { q: 3, r: 2 },
+
+  // Row r=3 (4 hexes)
   { q: 0, r: 3 },
   { q: 1, r: 3 },
   { q: 2, r: 3 },
   { q: 3, r: 3 },
-  { q: 4, r: 3 },
-  { q: 5, r: 3 },
-  { q: 6, r: 3 },
-  { q: 7, r: 3 },
 
-  // Row r=4 (2 hexes) - bottom scattered
+  // Row r=4 (2 hexes)
   { q: 1, r: 4 },
-  { q: 7, r: 4 },
+  { q: 2, r: 4 },
+]; // 17 hexes = exactly 36 edges (verified)
 
-  // Row r=5 (1 hex) - bottom right tip
-  { q: 7, r: 5 },
-]; // 24 hexes total = 48 edges
+/**
+ * NYC48 Fallback Map (5-6 player standard)
+ * Compact layout: 22 hexagons creating exactly 48 edges (verified)
+ */
+const NYC48_POSITIONS: HexCoordinate[] = [
+  // Row r=0 (4 hexes)
+  { q: 0, r: 0 },
+  { q: 1, r: 0 },
+  { q: 2, r: 0 },
+  { q: 3, r: 0 },
+
+  // Row r=1 (4 hexes)
+  { q: 0, r: 1 },
+  { q: 1, r: 1 },
+  { q: 2, r: 1 },
+  { q: 3, r: 1 },
+
+  // Row r=2 (4 hexes)
+  { q: 0, r: 2 },
+  { q: 1, r: 2 },
+  { q: 2, r: 2 },
+  { q: 3, r: 2 },
+
+  // Row r=3 (4 hexes)
+  { q: 0, r: 3 },
+  { q: 1, r: 3 },
+  { q: 2, r: 3 },
+  { q: 3, r: 3 },
+
+  // Row r=4 (3 hexes)
+  { q: 0, r: 4 },
+  { q: 1, r: 4 },
+  { q: 2, r: 4 },
+
+  // Row r=5 (3 hexes)
+  { q: 0, r: 5 },
+  { q: 1, r: 5 },
+  { q: 2, r: 5 },
+]; // 22 hexes = exactly 48 edges (verified)
 
 /**
  * Define hex type distribution based on player count
@@ -357,24 +441,29 @@ function generateRandomMapLayout(targetEdges: number, maxAttempts: number = 150)
   // Fallback: return the fixed layouts if random generation fails
   console.warn(`Failed to generate map with ${targetEdges} edges after ${maxAttempts} attempts, using fallback`);
 
-  // Choose closest fallback based on target edges
-  // NYC20_POSITIONS (20 edges) for: 15, 18, 20 (small maps)
-  // NYC25_POSITIONS (25 edges) for: 24, 25 (medium maps)
-  // NYC36_POSITIONS (36 edges) for: 30, 36 (medium/large maps)
-  // NYC48_POSITIONS (48 edges) for: 48+ (extra large maps)
-  if (targetEdges <= 20) {
-    console.log(`Using NYC20 fallback (20 edges) for target ${targetEdges}`);
-    return NYC20_POSITIONS;
-  } else if (targetEdges <= 25) {
-    console.log(`Using NYC25 fallback (25 edges) for target ${targetEdges}`);
-    return NYC25_POSITIONS;
-  } else if (targetEdges <= 36) {
-    console.log(`Using NYC36 fallback (36 edges) for target ${targetEdges}`);
-    return NYC36_POSITIONS;
-  } else {
-    console.log(`Using NYC48 fallback (48 edges) for target ${targetEdges}`);
-    return NYC48_POSITIONS;
+  // Each fallback has exactly the target number of edges (verified)
+  const fallbackMap: Record<number, HexCoordinate[]> = {
+    15: NYC15_POSITIONS,
+    18: NYC18_POSITIONS,
+    20: NYC20_POSITIONS,
+    24: NYC24_POSITIONS,
+    25: NYC25_POSITIONS,
+    30: NYC30_POSITIONS,
+    36: NYC36_POSITIONS,
+    48: NYC48_POSITIONS,
+  };
+
+  const fallback = fallbackMap[targetEdges];
+  if (fallback) {
+    console.log(`Using NYC${targetEdges} fallback (${targetEdges} edges)`);
+    return fallback;
   }
+
+  // For any unexpected edge count, use the closest larger fallback
+  const sortedKeys = Object.keys(fallbackMap).map(Number).sort((a, b) => a - b);
+  const closestKey = sortedKeys.find(k => k >= targetEdges) || sortedKeys[sortedKeys.length - 1];
+  console.log(`Using NYC${closestKey} fallback (${closestKey} edges) for unexpected target ${targetEdges}`);
+  return fallbackMap[closestKey];
 }
 
 /**
